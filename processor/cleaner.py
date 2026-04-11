@@ -137,7 +137,13 @@ def clean_all():
         df["email"] = None
 
     # ── Remove rows with NO contact info at all ──
-    df = df[df["phone"].notna() | df["email"].notna()]
+    has_contact = (
+        df["phone"].notna()
+        | df["email"].notna()
+        | (df.get("website", pd.Series(dtype=str)).notna() & (df.get("website", pd.Series(dtype=str)) != ""))
+        | (df.get("google_maps_url", pd.Series(dtype=str)).notna() & (df.get("google_maps_url", pd.Series(dtype=str)) != ""))
+    )
+    df = df[has_contact]
     logger.info(f"🧹 After removing rows with no contact info: {len(df)}")
 
     # ── Deduplicate by phone ──
@@ -172,7 +178,8 @@ def clean_all():
     # ── Standardize column order ──
     priority_columns = [
         "business_name", "category", "city", "phone", "email",
-        "website", "address", "rating", "source", "date_added", "status",
+        "website", "google_maps_url", "address", "rating",
+        "source", "date_added", "status",
     ]
     existing_cols = [c for c in priority_columns if c in df.columns]
     remaining_cols = [c for c in df.columns if c not in existing_cols]
@@ -191,6 +198,10 @@ def clean_all():
     logger.info(f"   Removed:         {initial_count - len(df)}")
     logger.info(f"   With phone:      {df['phone'].notna().sum()}")
     logger.info(f"   With email:      {df['email'].notna().sum()}")
+    has_website = (df.get("website", pd.Series(dtype=str)).notna() & (df.get("website", pd.Series(dtype=str)) != "")).sum()
+    has_maps = (df.get("google_maps_url", pd.Series(dtype=str)).notna() & (df.get("google_maps_url", pd.Series(dtype=str)) != "")).sum()
+    logger.info(f"   With website:    {has_website}")
+    logger.info(f"   With Maps URL:   {has_maps}")
     if "city" in df.columns:
         logger.info(f"   By city:")
         for city, count in df["city"].value_counts().items():

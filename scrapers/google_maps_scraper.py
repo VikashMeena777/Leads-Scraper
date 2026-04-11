@@ -166,6 +166,13 @@ def extract_listing_details(page) -> dict | None:
         if not name.strip():
             return None
 
+        # Google Maps URL (current page URL — always available)
+        google_maps_url = ""
+        try:
+            google_maps_url = page.url or ""
+        except Exception:
+            pass
+
         # Phone number — try multiple selectors
         phone = ""
         phone_selectors = [
@@ -186,21 +193,42 @@ def extract_listing_details(page) -> dict | None:
             except Exception:
                 continue
 
-        # Website
+        # Website — try multiple selectors and extract both text and href
         website = ""
         website_selectors = [
             '[data-item-id*="authority"] .Io6YTe',
             'a[data-item-id*="authority"]',
             '[aria-label*="Website"] .Io6YTe',
+            'a[aria-label*="Website"]',
+            'a[data-tooltip*="website"]',
+            'a[href*="http"]:has(.Io6YTe)',
         ]
         for sel in website_selectors:
             try:
                 el = page.locator(sel)
                 if el.count() > 0:
-                    website = el.first.text_content(timeout=2000) or ""
-                    if not website:
-                        website = el.first.get_attribute("href") or ""
-                    if website.strip():
+                    # Try href first (full URL), then display text (domain)
+                    href = el.first.get_attribute("href") or ""
+                    text = el.first.text_content(timeout=2000) or ""
+
+                    # Google Maps wraps links in redirect — extract real URL
+                    if "google.com/url?" in href:
+                        import re as _re
+                        match = _re.search(r'[?&]q=([^&]+)', href)
+                        if match:
+                            from urllib.parse import unquote
+                            href = unquote(match.group(1))
+
+                    # Prefer href (full URL), fallback to display text
+                    if href and "google.com" not in href:
+                        website = href
+                    elif text.strip() and "google" not in text.lower():
+                        website = text.strip()
+
+                    if website:
+                        # Ensure it starts with http
+                        if website and not website.startswith("http"):
+                            website = "https://" + website
                         break
             except Exception:
                 continue
@@ -245,6 +273,7 @@ def extract_listing_details(page) -> dict | None:
             "category": category.strip(),
             "phone": phone.strip(),
             "website": website.strip(),
+            "google_maps_url": google_maps_url.strip(),
             "address": address.strip(),
             "rating": rating.strip(),
         }
