@@ -1,0 +1,7 @@
+playwright
+playwright-stealth
+pandas
+phonenumbers
+gspread
+google-auth
+python-dotenv

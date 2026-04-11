@@ -1,0 +1,2 @@
+# This file keeps the output directory in git.
+# Actual CSV files and state.json are gitignored.

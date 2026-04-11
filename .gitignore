@@ -1,0 +1,28 @@
+# Environment
+.env
+.env.local
+venv/
+
+# Credentials (stored in GitHub Secrets)
+config/credentials.json
+
+# Output data (generated at runtime)
+output/*.csv
+output/*.log
+output/state.json
+
+# Keep output directory
+!output/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,19 @@
+{
+  "business_email_queries": [
+    "{keyword} in {city} contact email",
+    "{keyword} in {city} phone number",
+    "{keyword} {city} owner contact",
+    "\"{keyword}\" \"{city}\" \"@gmail.com\" OR \"@yahoo.com\" OR \"contact\""
+  ],
+  "smm_queries": [
+    "\"social media manager\" \"{city}\" email contact",
+    "\"digital marketing freelancer\" \"{city}\" contact",
+    "site:linkedin.com/in \"social media manager\" \"{city}\"",
+    "site:linkedin.com/in \"digital marketer\" \"{city}\"",
+    "\"content creator\" \"{city}\" \"@gmail.com\" OR \"contact\""
+  ],
+  "website_email_queries": [
+    "site:{website} email OR contact OR \"@\"",
+    "site:{website} \"contact us\" OR \"get in touch\""
+  ]
+}

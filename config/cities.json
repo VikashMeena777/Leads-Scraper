@@ -1,0 +1,28 @@
+{
+  "targets": [
+    {
+      "city": "Jaipur",
+      "keywords": ["restaurants", "cafes", "bakeries", "hotels"]
+    },
+    {
+      "city": "Delhi",
+      "keywords": ["restaurants", "cafes", "cloud kitchens"]
+    },
+    {
+      "city": "Mumbai",
+      "keywords": ["restaurants", "cafes", "food joints"]
+    },
+    {
+      "city": "Bangalore",
+      "keywords": ["cafes", "restaurants", "co-working cafes"]
+    },
+    {
+      "city": "Hyderabad",
+      "keywords": ["restaurants", "cafes", "bakeries"]
+    },
+    {
+      "city": "Pune",
+      "keywords": ["cafes", "restaurants", "bakeries"]
+    }
+  ]
+}

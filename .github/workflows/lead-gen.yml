@@ -1,0 +1,185 @@
+# ──────────────────────────────────────────────────────────────────
+#  Lead Generation Pipeline — GitHub Actions
+#  Runs daily at 6:00 AM IST (00:30 UTC) or manually via dispatch
+# ──────────────────────────────────────────────────────────────────
+name: "🚀 Lead Gen Pipeline"
+
+on:
+  schedule:
+    # 6:00 AM IST = 00:30 UTC
+    - cron: "30 0 * * *"
+  workflow_dispatch:
+    inputs:
+      scraper:
+        description: "Which scraper to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - google_maps
+          - justdial
+          - google_search
+      city:
+        description: "Specific city (leave empty for all)"
+        required: false
+        type: string
+      reset:
+        description: "Reset scraper state?"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  HEADLESS: "true"
+  MIN_DELAY: "2"
+  MAX_DELAY: "5"
+
+jobs:
+  scrape:
+    name: "🔍 Scrape Leads"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      # ── Setup ──────────────────────────────────────
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
+
+      # ── Google Credentials (from secret) ───────────
+      - name: 🔐 Setup Google credentials
+        run: |
+          mkdir -p config
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > config/credentials.json
+
+      # ── Restore state from previous run ────────────
+      - name: 📂 Restore scraper state
+        uses: actions/cache@v4
+        with:
+          path: output/state.json
+          key: lead-gen-state-${{ github.run_number }}
+          restore-keys: |
+            lead-gen-state-
+
+      # ── Reset state if requested ───────────────────
+      - name: 🔄 Reset state
+        if: ${{ github.event.inputs.reset == 'true' }}
+        run: |
+          rm -f output/state.json
+          echo "State reset complete"
+
+      # ── Create output directory ────────────────────
+      - name: 📁 Prepare output directory
+        run: mkdir -p output
+
+      # ── Run Scrapers ───────────────────────────────
+      - name: "🗺️ Google Maps Scraper"
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.scraper == 'all' || github.event.inputs.scraper == 'google_maps' }}
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_PATH: config/credentials.json
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          CITY_ARG=""
+          if [ -n "${{ github.event.inputs.city }}" ]; then
+            CITY_ARG="--city ${{ github.event.inputs.city }}"
+          fi
+          python scrapers/google_maps_scraper.py $CITY_ARG || true
+
+      - name: "📋 Justdial Scraper"
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.scraper == 'all' || github.event.inputs.scraper == 'justdial' }}
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_PATH: config/credentials.json
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          CITY_ARG=""
+          if [ -n "${{ github.event.inputs.city }}" ]; then
+            CITY_ARG="--city ${{ github.event.inputs.city }}"
+          fi
+          python scrapers/justdial_scraper.py $CITY_ARG || true
+
+      - name: "🔎 Google Search Scraper"
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.scraper == 'all' || github.event.inputs.scraper == 'google_search' }}
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_PATH: config/credentials.json
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          CITY_ARG=""
+          if [ -n "${{ github.event.inputs.city }}" ]; then
+            CITY_ARG="--city ${{ github.event.inputs.city }}"
+          fi
+          python scrapers/google_search_scraper.py $CITY_ARG || true
+
+      # ── Clean & Upload ─────────────────────────────
+      - name: "🧹 Clean & Deduplicate"
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_PATH: config/credentials.json
+        run: python processor/cleaner.py
+
+      - name: "📊 Upload to Google Sheets"
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_PATH: config/credentials.json
+        run: python processor/sheets_uploader.py
+
+      # ── Save artifacts ─────────────────────────────
+      - name: 📤 Upload CSV artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lead-data-${{ github.run_number }}
+          path: |
+            output/*.csv
+            output/state.json
+          retention-days: 30
+
+      # ── Telegram Notification ──────────────────────
+      - name: "✅ Notify Success"
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          LEAD_COUNT=$(wc -l < output/leads_clean.csv 2>/dev/null || echo "0")
+          LEAD_COUNT=$((LEAD_COUNT - 1))  # subtract header
+          [ $LEAD_COUNT -lt 0 ] && LEAD_COUNT=0
+
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+              \"text\": \"✅ <b>Lead Gen Pipeline Complete</b>\n\n📊 Leads: ${LEAD_COUNT}\n🕐 Run: #${{ github.run_number }}\n📋 Uploaded to Google Sheets\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"parse_mode\": \"HTML\"
+            }" || true
+
+      - name: "❌ Notify Failure"
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+              \"text\": \"❌ <b>Lead Gen Pipeline Failed</b>\n\n🕐 Run: #${{ github.run_number }}\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"parse_mode\": \"HTML\"
+            }" || true
