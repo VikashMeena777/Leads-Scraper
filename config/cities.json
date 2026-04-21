@@ -2,27 +2,27 @@
   "targets": [
     {
       "city": "Jaipur",
-      "keywords": ["restaurants", "cafes", "bakeries", "hotels"]
+      "keywords": ["restaurants", "cafes", "bakeries", "hotels", "salons", "spas", "gyms", "fitness centers", "beauty parlours", "dental clinics"]
     },
     {
       "city": "Delhi",
-      "keywords": ["restaurants", "cafes", "cloud kitchens"]
+      "keywords": ["restaurants", "cafes", "cloud kitchens", "salons", "gyms", "spas", "dental clinics"]
     },
     {
       "city": "Mumbai",
-      "keywords": ["restaurants", "cafes", "food joints"]
+      "keywords": ["restaurants", "cafes", "food joints", "salons", "gyms", "spas", "fitness studios"]
     },
     {
       "city": "Bangalore",
-      "keywords": ["cafes", "restaurants", "co-working cafes"]
+      "keywords": ["cafes", "restaurants", "co-working cafes", "salons", "gyms", "spas", "yoga studios"]
     },
     {
       "city": "Hyderabad",
-      "keywords": ["restaurants", "cafes", "bakeries"]
+      "keywords": ["restaurants", "cafes", "bakeries", "salons", "gyms", "spas"]
     },
     {
       "city": "Pune",
-      "keywords": ["cafes", "restaurants", "bakeries"]
+      "keywords": ["cafes", "restaurants", "bakeries", "salons", "gyms", "spas", "fitness centers"]
     }
   ]
 }

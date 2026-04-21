@@ -1,0 +1,528 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "jsCode": "// Filter leads: uncontacted + has phone number\n// Limits to 40 leads per batch\nconst items = $input.all();\nconst uncontacted = [];\nconst DAILY_LIMIT = 40;\n\nfor (const item of items) {\n  const status = (item.json.status || '').toString().toLowerCase().trim();\n  const phone = (item.json.phone || '').toString().trim();\n  \n  // Skip already contacted or no phone\n  if (['contacted', 'replied', 'converted', 'not_interested'].includes(status)) continue;\n  if (!phone || phone.length < 8) continue;\n  \n  // Clean phone for WhatsApp (must be 91XXXXXXXXXX)\n  let cleanPhone = phone.replace(/[^0-9+]/g, '');\n  if (cleanPhone.startsWith('+91')) cleanPhone = cleanPhone.substring(1);\n  else if (cleanPhone.startsWith('0')) cleanPhone = '91' + cleanPhone.substring(1);\n  else if (!cleanPhone.startsWith('91') && cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;\n  \n  // Need at least 12 digits (91 + 10)\n  if (cleanPhone.length < 12) continue;\n\n  uncontacted.push({\n    json: {\n      business_name: item.json.business_name || 'Business',\n      category: item.json.category || '',\n      city: item.json.city || '',\n      phone: phone,\n      email: item.json.email || '',\n      website: item.json.website || '',\n      google_maps_url: item.json.google_maps_url || '',\n      rating: item.json.rating || '',\n      clean_phone: cleanPhone,\n      row_number: items.indexOf(item) + 2\n    }\n  });\n  \n  if (uncontacted.length >= DAILY_LIMIT) break;\n}\n\nreturn uncontacted;"
+            },
+            "id": "filter-code-1",
+            "name": "Filter Uncontacted",
+            "position": [
+                480,
+                400
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"model\": \"mistralai/mixtral-8x22b-instruct-v0.1\",\n  \"max_tokens\": 500,\n  \"temperature\": 0.8,\n  \"top_p\": 0.95,\n  \"stream\": false,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are Vikash — a young, skilled AI automation expert from Jaipur who builds smart business systems. You write WhatsApp outreach messages that feel personal, valuable, and impossible to ignore.\\n\\nMESSAGE STRUCTURE (4-5 lines, 70-100 words):\\n\\nLine 1: Warm greeting + their exact business name + genuine compliment (mention their rating, area, or something specific about their category)\\n\\nLine 2-3: Show you researched them — reference their specific business type and a real challenge they likely face (e.g. restaurants struggle with late-night orders, cafes need consistent Instagram content, hotels miss booking inquiries after hours)\\n\\nLine 4-5: Present ONE specific AI automation with a concrete result. Be specific with numbers.\\n\\nLine 6: Soft CTA question — curious, not pushy\\n\\nLine 7: Sign off as - Vikash\\n\\nWHAT TO OFFER — DEPENDS ON WEBSITE STATUS:\\n\\nIF THEY HAVE A WEBSITE (website field is not empty/None):\\nDO NOT offer website or digital presence. They already have one. Instead offer ONE of these AI automations:\\n\\n1. WhatsApp AI Chatbot — handles customer queries, menu browsing, table bookings, and orders 24/7 automatically. They never miss a customer even at 2 AM. Mention: reduces response time from hours to seconds.\\n2. AI Review Responder — automatically crafts personalized replies to every Google and Zomato review within minutes. Boosts their search ranking and shows customers they care.\\n3. AI Social Media Manager — generates and posts Instagram/Facebook content (photos, captions, stories, reels ideas) on autopilot. Consistent posting without hiring a social media person.\\n4. WhatsApp Ordering System — customers browse menu, customize orders, and pay directly via WhatsApp chat. No app download needed. Increases orders by 30-40%.\\n5. AI Customer Follow-up System — automatically sends personalized 'we miss you' messages to customers who haven't visited in 2+ weeks. Brings back 15-20% of inactive customers.\\n6. AI-powered Google Business Profile — auto-posts updates, responds to Q&A, and keeps the profile active. Higher Maps ranking = more walk-in customers.\\n\\nPick the MOST relevant one based on business type:\\n- Restaurants/Cafes → WhatsApp ordering + AI chatbot for after-hours\\n- Hotels/Resorts → AI booking assistant + review responder\\n- Bakeries/Sweet shops → WhatsApp catalog + social media automation\\n- Salons/Spas → AI appointment booking + customer follow-up\\n- Retail/Shops → WhatsApp product catalog + personalized offers\\n- Gyms/Fitness → AI membership bot + follow-up system\\n\\nIF THEY HAVE NO WEBSITE (website is None/empty):\\nOffer a combo: professional website + ONE AI automation. Mention that 73% of customers search online before visiting, and they are losing customers every day without a web presence.\\n\\nTONE RULES:\\n- Sound like a confident, knowledgeable young entrepreneur who genuinely wants to help — NOT a salesperson or spammer\\n- Conversational Indian English — okay to use light Hindi words naturally like 'aapki', 'bhai', 'ji' if it fits\\n- Include ONE specific number or stat to build credibility (e.g. '24/7 availability', '3x faster response', '30% more orders', 'saves 2 hours daily')\\n- Make them feel this is a personal message, not a mass blast\\n- Use 2-3 emojis naturally — dont overdo\\n- NEVER use [brackets], {curly braces}, or {{placeholders}} in your output\\n- NEVER say 'Dear Sir/Madam', 'I hope this message finds you well', 'We are a leading company'\\n- NEVER sound like a corporate pitch or template\\n- The message should feel like a friend who happens to be tech-savvy is genuinely offering help\\n- End with: - Vikash\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Write a WhatsApp outreach message for this business:\\n\\nBusiness Name: {{ $json.business_name }}\\nCategory/Type: {{ $json.category }}\\nCity: {{ $json.city }}\\nGoogle Rating: {{ $json.rating }}/5 stars\\nWebsite: {{ $json.website || 'NO WEBSITE — they need one!' }}\\nHas Website: {{ $json.website ? 'YES — do NOT offer website, offer AI automations only' : 'NO — offer website + AI automation combo' }}\"\n    }\n  ]\n}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "ai-http-1",
+            "name": "AI Message Generator",
+            "position": [
+                1376,
+                480
+            ],
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.4,
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "dixJTs9Uqg5lS26P",
+                    "name": "NVIDIA NIM API"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "mode": "runOnceForEachItem",
+                "jsCode": "// Get AI message\nlet message = '';\ntry {\n  message = $json.choices[0].message.content.trim();\n} catch(e) {\n  const lead = $('Filter Uncontacted').item.json;\n  message = `Hi! I noticed ${lead.business_name} in ${lead.city} and loved your ${lead.category || 'business'}. I help local businesses get more customers through social media and Google. Would you be open to a quick chat? \\n- Vikash`;\n}\n\nconst lead = $('Filter Uncontacted').item.json;\nconst phone = lead.clean_phone;\n\n// Build wa.me link\nconst waLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;\n\n// Build Telegram card\nlet tg = `\\ud83c\\udfe2 <b>${lead.business_name}</b>\\n`;\ntg += `\\ud83c\\udff7 ${lead.category || 'Business'} \\u2022 \\ud83c\\udfd9 ${lead.city}`;\nif (lead.rating) tg += ` \\u2022 \\u2b50 ${lead.rating}`;\ntg += `\\n\\ud83d\\udcde ${lead.phone}`;\nif (lead.website && lead.website !== 'None') tg += `\\n\\ud83c\\udf10 ${lead.website}`;\ntg += `\\n\\n\\ud83d\\udcac <i>${message.replace(/</g, '&lt;').replace(/>/g, '&gt;').substring(0, 250)}</i>`;\ntg += `\\n\\n\\ud83d\\udc49 <a href=\\\"${waLink}\\\">TAP TO SEND ON WHATSAPP</a>`;\nif (lead.google_maps_url) tg += `\\n\\ud83d\\udccd <a href=\\\"${lead.google_maps_url}\\\">View on Maps</a>`;\n\nreturn {\n  json: {\n    ...lead,\n    ai_message: message,\n    wa_link: waLink,\n    telegram_text: tg\n  }\n};"
+            },
+            "id": "build-link-1",
+            "name": "Build WhatsApp Link",
+            "position": [
+                1568,
+                384
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "parameters": {
+                "chatId": "6544741824",
+                "text": "={{ $json.telegram_text }}",
+                "additionalFields": {
+                    "disable_web_page_preview": true,
+                    "parse_mode": "HTML"
+                }
+            },
+            "id": "telegram-1",
+            "name": "Send to Telegram",
+            "position": [
+                1776,
+                384
+            ],
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.2,
+            "webhookId": "c2e0aa55-9dcc-4c8d-9e1e-df0d0087865d",
+            "credentials": {
+                "telegramApi": {
+                    "id": "j4gKlWlXw1rncrQb",
+                    "name": "WhatsApp Outreach Bot"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "amount": 2
+            },
+            "id": "wait-1",
+            "name": "Wait 2s",
+            "position": [
+                1984,
+                384
+            ],
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1.1,
+            "webhookId": "3b733363-e149-4ff7-bcad-428fda490afb"
+        },
+        {
+            "parameters": {
+                "operation": "update",
+                "documentId": {
+                    "__rl": true,
+                    "value": "16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg",
+                    "mode": "list",
+                    "cachedResultName": "Leads Gen",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg/edit?usp=drivesdk"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "Sheet1",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg/edit#gid=0"
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "status": "contacted",
+                        "phone": "={{ $('Build WhatsApp Link').item.json.phone }}"
+                    },
+                    "matchingColumns": [
+                        "phone"
+                    ],
+                    "schema": [
+                        {
+                            "id": "business_name",
+                            "displayName": "business_name",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "category",
+                            "displayName": "category",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "city",
+                            "displayName": "city",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "phone",
+                            "displayName": "phone",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": false
+                        },
+                        {
+                            "id": "email",
+                            "displayName": "email",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "website",
+                            "displayName": "website",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "google_maps_url",
+                            "displayName": "google_maps_url",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "address",
+                            "displayName": "address",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "rating",
+                            "displayName": "rating",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "source",
+                            "displayName": "source",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "date_added",
+                            "displayName": "date_added",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "status",
+                            "displayName": "status",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "search_keyword",
+                            "displayName": "search_keyword",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "scraped_at",
+                            "displayName": "scraped_at",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "row_number",
+                            "displayName": "row_number",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "number",
+                            "canBeUsedToMatch": true,
+                            "readOnly": true,
+                            "removed": true
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "id": "update-sheet-1",
+            "name": "Mark as Contacted",
+            "position": [
+                2192,
+                384
+            ],
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.7,
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "1gz3DofInpV64qih",
+                    "name": "Google Sheets account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "content": "# WhatsApp Lead Outreach",
+                "height": 400,
+                "width": 2432
+            },
+            "id": "note-1",
+            "name": "Sticky Note",
+            "position": [
+                -32,
+                304
+            ],
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1
+        },
+        {
+            "parameters": {
+                "documentId": {
+                    "__rl": true,
+                    "value": "16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg",
+                    "mode": "list",
+                    "cachedResultName": "Leads Gen",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg/edit?usp=drivesdk"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "Sheet1",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg/edit#gid=0"
+                },
+                "filtersUI": {
+                    "values": [
+                        {
+                            "lookupColumn": "status",
+                            "lookupValue": "New"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "read-sheet-1",
+            "name": "Get Leads Sheet",
+            "position": [
+                272,
+                400
+            ],
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.7,
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "1gz3DofInpV64qih",
+                    "name": "Google Sheets account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "maxItems": 10
+            },
+            "type": "n8n-nodes-base.limit",
+            "typeVersion": 1,
+            "position": [
+                688,
+                400
+            ],
+            "id": "42bea614-5b7c-45ca-bf83-2962f8992291",
+            "name": "Limit"
+        },
+        {
+            "parameters": {
+                "options": {}
+            },
+            "type": "n8n-nodes-base.splitInBatches",
+            "typeVersion": 3,
+            "position": [
+                896,
+                400
+            ],
+            "id": "82560b92-6c31-4470-9e40-a74368aa299d",
+            "name": "Loop Over Items"
+        },
+        {
+            "parameters": {
+                "amount": 3
+            },
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1.1,
+            "position": [
+                1168,
+                480
+            ],
+            "id": "a76fde23-e69f-436e-ac57-2a1b129982b9",
+            "name": "Wait",
+            "webhookId": "61ef4e9f-bece-46f5-a320-0a294f4295b4"
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "hours",
+                            "hoursInterval": 9
+                        }
+                    ]
+                }
+            },
+            "id": "schedule-1",
+            "name": "Every 9 Hour Trigger",
+            "position": [
+                64,
+                400
+            ],
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.3
+        }
+    ],
+    "connections": {
+        "Filter Uncontacted": {
+            "main": [
+                [
+                    {
+                        "node": "Limit",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Message Generator": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Items",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Build WhatsApp Link": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Send to Telegram",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "Send to Telegram": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Wait 2s",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "Wait 2s": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Mark as Contacted",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "Get Leads Sheet": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Filter Uncontacted",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "Limit": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Items",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Loop Over Items": {
+            "main": [
+                [
+                    {
+                        "node": "Build WhatsApp Link",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Wait",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Wait": {
+            "main": [
+                [
+                    {
+                        "node": "AI Message Generator",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Every 9 Hour Trigger": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Get Leads Sheet",
+                        "type": "main"
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "260ed10ca7527eef1744f6416cc66abd26c4fd51c36b77a8b51c7f7491d8e75e"
+    }
+}
