@@ -2,13 +2,13 @@
     "nodes": [
         {
             "parameters": {
-                "jsCode": "// Filter leads: uncontacted + has phone number\n// Limits to 40 leads per batch\nconst items = $input.all();\nconst uncontacted = [];\nconst DAILY_LIMIT = 40;\n\nfor (const item of items) {\n  const status = (item.json.status || '').toString().toLowerCase().trim();\n  const phone = (item.json.phone || '').toString().trim();\n  \n  // Skip already contacted or no phone\n  if (['contacted', 'replied', 'converted', 'not_interested'].includes(status)) continue;\n  if (!phone || phone.length < 8) continue;\n  \n  // Clean phone for WhatsApp (must be 91XXXXXXXXXX)\n  let cleanPhone = phone.replace(/[^0-9+]/g, '');\n  if (cleanPhone.startsWith('+91')) cleanPhone = cleanPhone.substring(1);\n  else if (cleanPhone.startsWith('0')) cleanPhone = '91' + cleanPhone.substring(1);\n  else if (!cleanPhone.startsWith('91') && cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;\n  \n  // Need at least 12 digits (91 + 10)\n  if (cleanPhone.length < 12) continue;\n\n  uncontacted.push({\n    json: {\n      business_name: item.json.business_name || 'Business',\n      category: item.json.category || '',\n      city: item.json.city || '',\n      phone: phone,\n      email: item.json.email || '',\n      website: item.json.website || '',\n      google_maps_url: item.json.google_maps_url || '',\n      rating: item.json.rating || '',\n      clean_phone: cleanPhone,\n      row_number: items.indexOf(item) + 2\n    }\n  });\n  \n  if (uncontacted.length >= DAILY_LIMIT) break;\n}\n\nreturn uncontacted;"
+                "jsCode": "// Filter leads: uncontacted + has phone + dedup\nconst items = $input.all();\nconst uncontacted = [];\nconst seenPhones = new Set();\nconst DAILY_LIMIT = 40;\n\n// Social media / non-website URL patterns\nconst NOT_WEBSITE = [\n  'instagram.com', 'facebook.com', 'fb.com', 'wa.me',\n  'api.whatsapp.com', 'whatsapp.com', 'youtube.com', 'youtu.be',\n  'twitter.com', 'x.com', 'linkedin.com', 'tiktok.com',\n  'linktr.ee', 'linktree.com', 'bit.ly', 'g.page',\n  'maps.google.com', 'goo.gl', 'maps.app.goo.gl',\n  'zomato.com', 'swiggy.com', 'justdial.com',\n  'play.google.com', 'apps.apple.com'\n];\n\nfunction isRealWebsite(url) {\n  if (!url || url === '' || url === 'None' || url === 'none' || url === 'N/A') return false;\n  const lower = url.toLowerCase().trim();\n  if (lower.length < 5) return false;\n  // Check if it's a social media / non-website link\n  for (const pattern of NOT_WEBSITE) {\n    if (lower.includes(pattern)) return false;\n  }\n  return true;\n}\n\nfor (const item of items) {\n  const status = (item.json.status || '').toString().toLowerCase().trim();\n  const phone = (item.json.phone || '').toString().trim();\n  \n  // Skip already contacted\n  if (['contacted', 'replied', 'converted', 'not_interested'].includes(status)) continue;\n  if (!phone || phone.length < 8) continue;\n  \n  // Clean phone for WhatsApp (91XXXXXXXXXX)\n  let cleanPhone = phone.replace(/[^0-9+]/g, '');\n  if (cleanPhone.startsWith('+91')) cleanPhone = cleanPhone.substring(1);\n  else if (cleanPhone.startsWith('0')) cleanPhone = '91' + cleanPhone.substring(1);\n  else if (!cleanPhone.startsWith('91') && cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;\n  if (cleanPhone.length < 12) continue;\n  \n  // DEDUP: skip if phone already seen\n  if (seenPhones.has(cleanPhone)) continue;\n  seenPhones.add(cleanPhone);\n\n  // Check if website is REAL (not instagram/facebook/whatsapp link)\n  const rawWebsite = (item.json.website || '').toString().trim();\n  const hasRealWebsite = isRealWebsite(rawWebsite);\n\n  uncontacted.push({\n    json: {\n      business_name: item.json.business_name || 'Business',\n      category: item.json.category || '',\n      city: item.json.city || '',\n      phone: phone,\n      email: item.json.email || '',\n      website: hasRealWebsite ? rawWebsite : '',\n      has_website: hasRealWebsite ? 'YES' : 'NO',\n      google_maps_url: item.json.google_maps_url || '',\n      rating: item.json.rating || '',\n      clean_phone: cleanPhone,\n      row_number: items.indexOf(item) + 2\n    }\n  });\n  \n  if (uncontacted.length >= DAILY_LIMIT) break;\n}\n\nreturn uncontacted;"
             },
-            "id": "filter-code-1",
+            "id": "dec40633-a0f2-46e3-b4ac-1555136757ea",
             "name": "Filter Uncontacted",
             "position": [
-                480,
-                400
+                688,
+                944
             ],
             "type": "n8n-nodes-base.code",
             "typeVersion": 2
@@ -21,7 +21,7 @@
                 "genericAuthType": "httpHeaderAuth",
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={\n  \"model\": \"mistralai/mixtral-8x22b-instruct-v0.1\",\n  \"max_tokens\": 500,\n  \"temperature\": 0.8,\n  \"top_p\": 0.95,\n  \"stream\": false,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are Vikash — a young, skilled AI automation expert from Jaipur who builds smart business systems. You write WhatsApp outreach messages that feel personal, valuable, and impossible to ignore.\\n\\nMESSAGE STRUCTURE (4-5 lines, 70-100 words):\\n\\nLine 1: Warm greeting + their exact business name + genuine compliment (mention their rating, area, or something specific about their category)\\n\\nLine 2-3: Show you researched them — reference their specific business type and a real challenge they likely face (e.g. restaurants struggle with late-night orders, cafes need consistent Instagram content, hotels miss booking inquiries after hours)\\n\\nLine 4-5: Present ONE specific AI automation with a concrete result. Be specific with numbers.\\n\\nLine 6: Soft CTA question — curious, not pushy\\n\\nLine 7: Sign off as - Vikash\\n\\nWHAT TO OFFER — DEPENDS ON WEBSITE STATUS:\\n\\nIF THEY HAVE A WEBSITE (website field is not empty/None):\\nDO NOT offer website or digital presence. They already have one. Instead offer ONE of these AI automations:\\n\\n1. WhatsApp AI Chatbot — handles customer queries, menu browsing, table bookings, and orders 24/7 automatically. They never miss a customer even at 2 AM. Mention: reduces response time from hours to seconds.\\n2. AI Review Responder — automatically crafts personalized replies to every Google and Zomato review within minutes. Boosts their search ranking and shows customers they care.\\n3. AI Social Media Manager — generates and posts Instagram/Facebook content (photos, captions, stories, reels ideas) on autopilot. Consistent posting without hiring a social media person.\\n4. WhatsApp Ordering System — customers browse menu, customize orders, and pay directly via WhatsApp chat. No app download needed. Increases orders by 30-40%.\\n5. AI Customer Follow-up System — automatically sends personalized 'we miss you' messages to customers who haven't visited in 2+ weeks. Brings back 15-20% of inactive customers.\\n6. AI-powered Google Business Profile — auto-posts updates, responds to Q&A, and keeps the profile active. Higher Maps ranking = more walk-in customers.\\n\\nPick the MOST relevant one based on business type:\\n- Restaurants/Cafes → WhatsApp ordering + AI chatbot for after-hours\\n- Hotels/Resorts → AI booking assistant + review responder\\n- Bakeries/Sweet shops → WhatsApp catalog + social media automation\\n- Salons/Spas → AI appointment booking + customer follow-up\\n- Retail/Shops → WhatsApp product catalog + personalized offers\\n- Gyms/Fitness → AI membership bot + follow-up system\\n\\nIF THEY HAVE NO WEBSITE (website is None/empty):\\nOffer a combo: professional website + ONE AI automation. Mention that 73% of customers search online before visiting, and they are losing customers every day without a web presence.\\n\\nTONE RULES:\\n- Sound like a confident, knowledgeable young entrepreneur who genuinely wants to help — NOT a salesperson or spammer\\n- Conversational Indian English — okay to use light Hindi words naturally like 'aapki', 'bhai', 'ji' if it fits\\n- Include ONE specific number or stat to build credibility (e.g. '24/7 availability', '3x faster response', '30% more orders', 'saves 2 hours daily')\\n- Make them feel this is a personal message, not a mass blast\\n- Use 2-3 emojis naturally — dont overdo\\n- NEVER use [brackets], {curly braces}, or {{placeholders}} in your output\\n- NEVER say 'Dear Sir/Madam', 'I hope this message finds you well', 'We are a leading company'\\n- NEVER sound like a corporate pitch or template\\n- The message should feel like a friend who happens to be tech-savvy is genuinely offering help\\n- End with: - Vikash\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Write a WhatsApp outreach message for this business:\\n\\nBusiness Name: {{ $json.business_name }}\\nCategory/Type: {{ $json.category }}\\nCity: {{ $json.city }}\\nGoogle Rating: {{ $json.rating }}/5 stars\\nWebsite: {{ $json.website || 'NO WEBSITE — they need one!' }}\\nHas Website: {{ $json.website ? 'YES — do NOT offer website, offer AI automations only' : 'NO — offer website + AI automation combo' }}\"\n    }\n  ]\n}",
+                "jsonBody": "={\n  \"model\": \"meta/llama-3.1-405b-instruct\",\n  \"max_tokens\": 200,\n  \"temperature\": 0.6,\n  \"top_p\": 0.85,\n  \"stream\": false,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You write short WhatsApp messages. Output ONLY the raw message text. No quotes, no labels, no explanation.\\n\\nRules:\\n- Start with: Hi [business name]\\n- End with: - Vikash\\n- MAX 5 lines, 60-70 words total\\n- Zero emojis, zero exclamation marks\\n- Never say: AI, automation, chatbot, digital, innovative, leverage, Dear, Sir, Madam\\n- Simple words only: auto-reply, booking system, online menu page, website\\n\\nWhat to offer based on has_website field:\\n\\nIF has_website is NO: a professional website page showing their menu or services, prices, location, and WhatsApp button.\\n\\nIF has_website is YES and type is restaurant/cafe/bakery/food: WhatsApp auto-reply that sends menu and takes orders when busy.\\n\\nIF has_website is YES and type is salon/spa/beauty: WhatsApp booking system where customers pick a slot.\\n\\nIF has_website is YES and type is gym/fitness/yoga: WhatsApp auto-reply for membership plans and trial booking.\\n\\nIF has_website is YES and type is dental/doctor/clinic: WhatsApp appointment booking.\\n\\nIF has_website is YES and any other type: Google review auto-responder.\\n\\nAlways mention: free 14-day trial, only 3 spots this week, no payment needed, stop anytime.\\n\\nExample output:\\nHi Spice Kitchen - 4.2 stars and no website yet. I build online menu pages with prices, photos and a WhatsApp order button for restaurants. Free 14-day trial, 3 spots left this week. Want to try it? - Vikash\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Business: {{ $json.business_name }}\\nType: {{ $json.category }}\\nCity: {{ $json.city }}\\nRating: {{ $json.rating }}\\nhas_website: {{ $json.has_website }}\"\n    }\n  ]\n}",
                 "options": {
                     "response": {
                         "response": {
@@ -30,11 +30,11 @@
                     }
                 }
             },
-            "id": "ai-http-1",
+            "id": "a7d4b45c-ce5c-4885-8a3e-7c33682d71fa",
             "name": "AI Message Generator",
             "position": [
-                1376,
-                480
+                1120,
+                944
             ],
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.4,
@@ -48,13 +48,13 @@
         {
             "parameters": {
                 "mode": "runOnceForEachItem",
-                "jsCode": "// Get AI message\nlet message = '';\ntry {\n  message = $json.choices[0].message.content.trim();\n} catch(e) {\n  const lead = $('Filter Uncontacted').item.json;\n  message = `Hi! I noticed ${lead.business_name} in ${lead.city} and loved your ${lead.category || 'business'}. I help local businesses get more customers through social media and Google. Would you be open to a quick chat? \\n- Vikash`;\n}\n\nconst lead = $('Filter Uncontacted').item.json;\nconst phone = lead.clean_phone;\n\n// Build wa.me link\nconst waLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;\n\n// Build Telegram card\nlet tg = `\\ud83c\\udfe2 <b>${lead.business_name}</b>\\n`;\ntg += `\\ud83c\\udff7 ${lead.category || 'Business'} \\u2022 \\ud83c\\udfd9 ${lead.city}`;\nif (lead.rating) tg += ` \\u2022 \\u2b50 ${lead.rating}`;\ntg += `\\n\\ud83d\\udcde ${lead.phone}`;\nif (lead.website && lead.website !== 'None') tg += `\\n\\ud83c\\udf10 ${lead.website}`;\ntg += `\\n\\n\\ud83d\\udcac <i>${message.replace(/</g, '&lt;').replace(/>/g, '&gt;').substring(0, 250)}</i>`;\ntg += `\\n\\n\\ud83d\\udc49 <a href=\\\"${waLink}\\\">TAP TO SEND ON WHATSAPP</a>`;\nif (lead.google_maps_url) tg += `\\n\\ud83d\\udccd <a href=\\\"${lead.google_maps_url}\\\">View on Maps</a>`;\n\nreturn {\n  json: {\n    ...lead,\n    ai_message: message,\n    wa_link: waLink,\n    telegram_text: tg\n  }\n};"
+                "jsCode": "const lead = $('Filter Uncontacted').item.json;\nlet message = '';\n\ntry {\n  message = $json.choices[0].message.content.trim();\n  \n  // Remove wrapping quotes if model added them\n  if ((message.startsWith('\"') && message.endsWith('\"')) || (message.startsWith(\"'\") && message.endsWith(\"'\"))) {\n    message = message.slice(1, -1).trim();\n  }\n  \n  // Fix common model mistakes\n  message = message.replace(/\\[Your Name\\]/gi, 'Vikash');\n  message = message.replace(/\\[your name\\]/gi, 'Vikash');\n  message = message.replace(/\\[Name\\]/gi, 'Vikash');\n  message = message.replace(/- \\[.*?\\]$/gm, '- Vikash');\n  \n  // Fix if model addresses Vikash instead of business\n  if (message.toLowerCase().startsWith('hi vikash')) {\n    message = message.replace(/^hi vikash[,\\s-]*/i, `Hi ${lead.business_name} - `);\n  }\n  if (message.toLowerCase().startsWith('hello vikash')) {\n    message = message.replace(/^hello vikash[,\\s-]*/i, `Hi ${lead.business_name} - `);\n  }\n  \n  // Strip emojis\n  message = message.replace(/[\\u{1F600}-\\u{1F64F}\\u{1F300}-\\u{1F5FF}\\u{1F680}-\\u{1F6FF}\\u{1F1E0}-\\u{1F1FF}\\u{2600}-\\u{27BF}\\u{2700}-\\u{27BF}\\u{FE00}-\\u{FE0F}\\u{1F900}-\\u{1F9FF}\\u{200D}\\u{23CF}\\u{23E9}-\\u{23F3}\\u{23F8}-\\u{23FA}\\u{2934}\\u{2935}\\u{25AA}-\\u{25FE}\\u{2B05}-\\u{2B07}\\u{2B1B}\\u{2B1C}\\u{2B50}\\u{2B55}\\u{3030}\\u{303D}\\u{3297}\\u{3299}\\u{1FA70}-\\u{1FAFF}\\u{1FC00}-\\u{1FCFF}]/gu, '').trim();\n  // Strip exclamation marks\n  message = message.replace(/!/g, '.');\n  // Clean double spaces\n  message = message.replace(/  +/g, ' ');\n  // Clean double periods\n  message = message.replace(/\\.\\.+/g, '.');\n  \n  // Ensure ends with - Vikash\n  if (!message.includes('- Vikash') && !message.includes('-Vikash')) {\n    message = message.replace(/\\s*$/, ' - Vikash');\n  }\n  \n  // Ensure starts with Hi [business_name]\n  if (!message.toLowerCase().startsWith('hi ')) {\n    message = `Hi ${lead.business_name} - ` + message;\n  }\n  \n} catch(e) {\n  // Hardcoded fallback - guaranteed good message\n  if (lead.has_website === 'YES') {\n    const cat = (lead.category || '').toLowerCase();\n    if (cat.match(/restaurant|cafe|bakery|food|kitchen/)) {\n      message = `Hi ${lead.business_name} - ${lead.rating || '4+'} stars, great reviews. Do customers WhatsApp you for menu or orders when you are busy? I set up auto-reply systems that handle it. Free 7-day trial, 3 spots this week. Want to try? - Vikash`;\n    } else if (cat.match(/salon|spa|beauty|parlour/)) {\n      message = `Hi ${lead.business_name} - ${lead.rating || '4+'} stars, clearly popular. I build WhatsApp booking systems where customers pick a slot and book without calling you. Free 7-day trial, 3 spots this week. Interested? - Vikash`;\n    } else {\n      message = `Hi ${lead.business_name} - ${lead.rating || '4+'} star rating, solid. I set up auto-reply for Google reviews so every customer gets a thank-you reply within minutes. Free 7-day trial, 3 spots this week. Want to try? - Vikash`;\n    }\n  } else {\n    message = `Hi ${lead.business_name} - ${lead.rating || '4+'} stars but no website yet. I build business pages with your menu, prices, location and WhatsApp button. Free 7-day trial, 3 spots this week. Want one? - Vikash`;\n  }\n}\n\nconst phone = lead.clean_phone;\nconst waLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;\n\n// Telegram card\nlet tg = `<b>${lead.business_name}</b>\\n`;\ntg += `${lead.category || 'Business'} | ${lead.city}`;\nif (lead.rating) tg += ` | ${lead.rating} stars`;\ntg += `\\nPhone: ${lead.phone}`;\ntg += `\\nWebsite: ${lead.has_website === 'YES' ? lead.website : 'None'}`;\ntg += `\\n\\n<i>${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</i>`;\ntg += `\\n\\n<a href=\"${waLink}\">TAP TO SEND ON WHATSAPP</a>`;\nif (lead.google_maps_url) tg += `\\n<a href=\"${lead.google_maps_url}\">View on Maps</a>`;\n\nreturn {\n  json: {\n    ...lead,\n    ai_message: message,\n    wa_link: waLink,\n    telegram_text: tg\n  }\n};"
             },
-            "id": "build-link-1",
+            "id": "182cdb5e-aa71-4692-af98-776a75923ee8",
             "name": "Build WhatsApp Link",
             "position": [
-                1568,
-                384
+                1344,
+                944
             ],
             "type": "n8n-nodes-base.code",
             "typeVersion": 2
@@ -68,11 +68,11 @@
                     "parse_mode": "HTML"
                 }
             },
-            "id": "telegram-1",
+            "id": "411f5ea0-5635-45a0-ada3-a985c50d3f27",
             "name": "Send to Telegram",
             "position": [
-                1776,
-                384
+                1552,
+                944
             ],
             "type": "n8n-nodes-base.telegram",
             "typeVersion": 1.2,
@@ -88,11 +88,11 @@
             "parameters": {
                 "amount": 2
             },
-            "id": "wait-1",
+            "id": "69592eb1-92db-481d-af65-3c12f74dee9f",
             "name": "Wait 2s",
             "position": [
-                1984,
-                384
+                1760,
+                944
             ],
             "type": "n8n-nodes-base.wait",
             "typeVersion": 1.1,
@@ -269,11 +269,11 @@
                 },
                 "options": {}
             },
-            "id": "update-sheet-1",
+            "id": "44588a1d-c1f6-4036-9363-e1680a92864c",
             "name": "Mark as Contacted",
             "position": [
-                2192,
-                384
+                1968,
+                944
             ],
             "type": "n8n-nodes-base.googleSheets",
             "typeVersion": 4.7,
@@ -287,14 +287,14 @@
         {
             "parameters": {
                 "content": "# WhatsApp Lead Outreach",
-                "height": 400,
-                "width": 2432
+                "height": 272,
+                "width": 2000
             },
-            "id": "note-1",
+            "id": "b2085d8b-2a5f-4220-860d-d38b20a7e113",
             "name": "Sticky Note",
             "position": [
-                -32,
-                304
+                176,
+                848
             ],
             "type": "n8n-nodes-base.stickyNote",
             "typeVersion": 1
@@ -325,11 +325,11 @@
                 },
                 "options": {}
             },
-            "id": "read-sheet-1",
+            "id": "7aa171be-30d6-4bf3-9da2-471893a36303",
             "name": "Get Leads Sheet",
             "position": [
-                272,
-                400
+                480,
+                944
             ],
             "type": "n8n-nodes-base.googleSheets",
             "typeVersion": 4.7,
@@ -347,38 +347,11 @@
             "type": "n8n-nodes-base.limit",
             "typeVersion": 1,
             "position": [
-                688,
-                400
-            ],
-            "id": "42bea614-5b7c-45ca-bf83-2962f8992291",
-            "name": "Limit"
-        },
-        {
-            "parameters": {
-                "options": {}
-            },
-            "type": "n8n-nodes-base.splitInBatches",
-            "typeVersion": 3,
-            "position": [
                 896,
-                400
+                944
             ],
-            "id": "82560b92-6c31-4470-9e40-a74368aa299d",
-            "name": "Loop Over Items"
-        },
-        {
-            "parameters": {
-                "amount": 3
-            },
-            "type": "n8n-nodes-base.wait",
-            "typeVersion": 1.1,
-            "position": [
-                1168,
-                480
-            ],
-            "id": "a76fde23-e69f-436e-ac57-2a1b129982b9",
-            "name": "Wait",
-            "webhookId": "61ef4e9f-bece-46f5-a320-0a294f4295b4"
+            "id": "19d0b2db-1bed-4c56-b847-261fc4ebee79",
+            "name": "Limit"
         },
         {
             "parameters": {
@@ -386,16 +359,16 @@
                     "interval": [
                         {
                             "field": "hours",
-                            "hoursInterval": 9
+                            "hoursInterval": 6
                         }
                     ]
                 }
             },
-            "id": "schedule-1",
-            "name": "Every 9 Hour Trigger",
+            "id": "626ffc24-8c3b-472d-8cc8-9a35262e5fa7",
+            "name": "Every 6 Hour Trigger",
             "position": [
-                64,
-                400
+                272,
+                944
             ],
             "type": "n8n-nodes-base.scheduleTrigger",
             "typeVersion": 1.3
@@ -417,7 +390,7 @@
             "main": [
                 [
                     {
-                        "node": "Loop Over Items",
+                        "node": "Build WhatsApp Link",
                         "type": "main",
                         "index": 0
                     }
@@ -428,9 +401,9 @@
             "main": [
                 [
                     {
-                        "index": 0,
                         "node": "Send to Telegram",
-                        "type": "main"
+                        "type": "main",
+                        "index": 0
                     }
                 ]
             ]
@@ -439,9 +412,9 @@
             "main": [
                 [
                     {
-                        "index": 0,
                         "node": "Wait 2s",
-                        "type": "main"
+                        "type": "main",
+                        "index": 0
                     }
                 ]
             ]
@@ -450,9 +423,9 @@
             "main": [
                 [
                     {
-                        "index": 0,
                         "node": "Mark as Contacted",
-                        "type": "main"
+                        "type": "main",
+                        "index": 0
                     }
                 ]
             ]
@@ -461,43 +434,14 @@
             "main": [
                 [
                     {
-                        "index": 0,
                         "node": "Filter Uncontacted",
-                        "type": "main"
+                        "type": "main",
+                        "index": 0
                     }
                 ]
             ]
         },
         "Limit": {
-            "main": [
-                [
-                    {
-                        "node": "Loop Over Items",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "Loop Over Items": {
-            "main": [
-                [
-                    {
-                        "node": "Build WhatsApp Link",
-                        "type": "main",
-                        "index": 0
-                    }
-                ],
-                [
-                    {
-                        "node": "Wait",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "Wait": {
             "main": [
                 [
                     {
@@ -508,13 +452,13 @@
                 ]
             ]
         },
-        "Every 9 Hour Trigger": {
+        "Every 6 Hour Trigger": {
             "main": [
                 [
                     {
-                        "index": 0,
                         "node": "Get Leads Sheet",
-                        "type": "main"
+                        "type": "main",
+                        "index": 0
                     }
                 ]
             ]
