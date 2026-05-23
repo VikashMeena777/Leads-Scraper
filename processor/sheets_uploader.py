@@ -17,6 +17,7 @@ Usage:
 
 import os
 import sys
+import re
 import logging
 from pathlib import Path
 
@@ -92,28 +93,82 @@ def upload_to_sheets() -> int:
         # Build sets of existing identifiers for dedup
         existing_phones = set()
         existing_emails = set()
+        existing_names_cities = set()
+        existing_maps_urls = set()
+
+        def normalize_phone_for_dedup(phone_str):
+            """Strip everything except digits for comparison."""
+            if not phone_str:
+                return ""
+            digits = re.sub(r"[^\d]", "", str(phone_str).strip())
+            # Normalize: remove leading 0, ensure starts with 91 for Indian numbers
+            if digits.startswith("0") and len(digits) == 11:
+                digits = "91" + digits[1:]
+            elif len(digits) == 10 and digits[0] in "6789":
+                digits = "91" + digits
+            elif digits.startswith("91") and len(digits) == 12:
+                pass  # already good
+            return digits
+
         for record in existing:
-            phone = str(record.get("phone", "")).strip()
+            phone = normalize_phone_for_dedup(record.get("phone", ""))
             email = str(record.get("email", "")).strip().lower()
+            name = str(record.get("business_name", "")).strip().lower()
+            city = str(record.get("city", "")).strip().lower()
+            maps_url = str(record.get("google_maps_url", "")).strip().lower()
+
             if phone:
                 existing_phones.add(phone)
             if email:
                 existing_emails.add(email)
+            if name and city:
+                existing_names_cities.add(f"{name}|{city}")
+            if maps_url and maps_url not in ("", "none", "n/a"):
+                existing_maps_urls.add(maps_url)
+
+        logger.info(f"   Dedup keys: {len(existing_phones)} phones, {len(existing_emails)} emails, {len(existing_names_cities)} name+city, {len(existing_maps_urls)} maps URLs")
 
         # Filter to only new rows
         new_rows = []
+        skipped_phone = 0
+        skipped_email = 0
+        skipped_name = 0
+        skipped_maps = 0
+
         for _, row in df.iterrows():
-            phone = str(row.get("phone", "")).strip()
+            phone = normalize_phone_for_dedup(row.get("phone", ""))
             email = str(row.get("email", "")).strip().lower()
+            name = str(row.get("business_name", "")).strip().lower()
+            city = str(row.get("city", "")).strip().lower()
+            maps_url = str(row.get("google_maps_url", "")).strip().lower()
 
             is_duplicate = False
             if phone and phone in existing_phones:
                 is_duplicate = True
-            if email and email in existing_emails:
+                skipped_phone += 1
+            elif email and email in existing_emails:
                 is_duplicate = True
+                skipped_email += 1
+            elif name and city and f"{name}|{city}" in existing_names_cities:
+                is_duplicate = True
+                skipped_name += 1
+            elif maps_url and maps_url not in ("", "none", "n/a") and maps_url in existing_maps_urls:
+                is_duplicate = True
+                skipped_maps += 1
 
             if not is_duplicate:
+                # Add to tracking sets so CSV-internal dupes are also caught
+                if phone:
+                    existing_phones.add(phone)
+                if email:
+                    existing_emails.add(email)
+                if name and city:
+                    existing_names_cities.add(f"{name}|{city}")
+                if maps_url and maps_url not in ("", "none", "n/a"):
+                    existing_maps_urls.add(maps_url)
                 new_rows.append(row.tolist())
+
+        logger.info(f"   Skipped dupes: {skipped_phone} phone, {skipped_email} email, {skipped_name} name+city, {skipped_maps} maps URL")
 
         if not new_rows:
             logger.info("✅ No new leads to upload (all already in sheet)")
