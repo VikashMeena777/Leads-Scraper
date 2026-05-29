@@ -2,27 +2,185 @@
   "targets": [
     {
       "city": "Jaipur",
-      "keywords": ["restaurants", "cafes", "bakeries", "hotels", "salons", "spas", "gyms", "fitness centers", "beauty parlours", "dental clinics"]
+      "tier": 1,
+      "keywords": ["restaurants", "cafes", "bakeries", "hotels", "salons", "spas", "gyms", "fitness centers", "beauty parlours", "dental clinics", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "event planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
     },
     {
       "city": "Delhi",
-      "keywords": ["restaurants", "cafes", "cloud kitchens", "salons", "gyms", "spas", "dental clinics"]
+      "tier": 1,
+      "keywords": ["restaurants", "cafes", "cloud kitchens", "salons", "gyms", "spas", "dental clinics", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "event planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
     },
     {
       "city": "Mumbai",
-      "keywords": ["restaurants", "cafes", "food joints", "salons", "gyms", "spas", "fitness studios"]
+      "tier": 1,
+      "keywords": ["restaurants", "cafes", "food joints", "salons", "gyms", "spas", "fitness studios", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "event planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
     },
     {
       "city": "Bangalore",
-      "keywords": ["cafes", "restaurants", "co-working cafes", "salons", "gyms", "spas", "yoga studios"]
+      "tier": 1,
+      "keywords": ["cafes", "restaurants", "co-working cafes", "salons", "gyms", "spas", "yoga studios", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "event planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
     },
     {
       "city": "Hyderabad",
-      "keywords": ["restaurants", "cafes", "bakeries", "salons", "gyms", "spas"]
+      "tier": 1,
+      "keywords": ["restaurants", "cafes", "bakeries", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "event planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
     },
     {
       "city": "Pune",
-      "keywords": ["cafes", "restaurants", "bakeries", "salons", "gyms", "spas", "fitness centers"]
+      "tier": 1,
+      "keywords": ["cafes", "restaurants", "bakeries", "salons", "gyms", "spas", "fitness centers", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "event planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+
+    {
+      "city": "Lucknow",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Chandigarh",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Indore",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Bhopal",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Nagpur",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Patna",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Kochi",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Coimbatore",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Vadodara",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Surat",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Visakhapatnam",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Thiruvananthapuram",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Mysuru",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Jodhpur",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Udaipur",
+      "tier": 2,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers", "furniture stores"]
+    },
+
+    {
+      "city": "Ajmer",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Kota",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Bikaner",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Sikar",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers"]
+    },
+    {
+      "city": "Alwar",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers"]
+    },
+    {
+      "city": "Bhilwara",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "jewellers"]
+    },
+    {
+      "city": "Ujjain",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers"]
+    },
+    {
+      "city": "Raipur",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Dehradun",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "spas", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Agra",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Varanasi",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "travel agents", "jewellers"]
+    },
+    {
+      "city": "Jalandhar",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Ludhiana",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "interior designers", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
+    },
+    {
+      "city": "Gwalior",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers"]
+    },
+    {
+      "city": "Ranchi",
+      "tier": 3,
+      "keywords": ["restaurants", "cafes", "salons", "gyms", "coaching centers", "tuition classes", "photographers", "wedding planners", "real estate agents", "doctors", "car dealers", "travel agents", "jewellers", "furniture stores"]
     }
   ]
 }

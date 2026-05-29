@@ -1,0 +1,96 @@
+# ──────────────────────────────────────────────────────────────────
+#  Daily Lead Mixer — GitHub Actions
+#  Runs every day at 5:30 AM IST (00:00 UTC) — BEFORE the n8n
+#  outreach workflow fires. Fills the "Daily Mix" tab with 50
+#  round-robin mixed leads from the master sheet.
+# ──────────────────────────────────────────────────────────────────
+name: "🔄 Daily Lead Mixer"
+
+on:
+  schedule:
+    # 5:30 AM IST = 00:00 UTC — runs daily before n8n (which runs every 12h)
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Number of leads to mix (default: 50)"
+        required: false
+        default: "50"
+        type: string
+      dry_run:
+        description: "Preview only (don't write to sheet)?"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  mix:
+    name: "🔄 Mix Daily Leads"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🔐 Setup Google credentials
+        run: |
+          mkdir -p config
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > config/credentials.json
+
+      - name: "🔄 Run Lead Mixer"
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_PATH: config/credentials.json
+        run: |
+          BATCH_SIZE="${{ github.event.inputs.batch_size || '50' }}"
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+
+          CMD="python processor/lead_mixer.py --batch-size $BATCH_SIZE"
+          if [ "$DRY_RUN" = "true" ]; then
+            CMD="$CMD --dry-run"
+          fi
+
+          echo "🔄 Running: $CMD"
+          $CMD
+
+      # ── Telegram Notification ──────────────────────
+      - name: "✅ Notify Success"
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          BATCH_SIZE="${{ github.event.inputs.batch_size || '50' }}"
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+              \"text\": \"🔄 <b>Daily Mix Ready</b>\n\n📊 ${BATCH_SIZE} mixed leads loaded\n📋 Check 'Daily Mix' tab in Google Sheet\n🤖 n8n will pick up leads automatically\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"parse_mode\": \"HTML\"
+            }" || true
+
+      - name: "❌ Notify Failure"
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+              \"text\": \"❌ <b>Daily Mixer Failed</b>\n\n🕐 Run: #${{ github.run_number }}\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"parse_mode\": \"HTML\"
+            }" || true

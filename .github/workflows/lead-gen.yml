@@ -86,8 +86,17 @@ jobs:
       - name: 🏙️ Pick today's city
         id: city
         run: |
-          # Cities list (must match config/cities.json order)
-          CITIES=("Jaipur" "Delhi" "Mumbai" "Bangalore" "Hyderabad" "Pune")
+          # Cities list — all 36 cities (Tier 1 + Tier 2 + Tier 3)
+          # Rotates daily: day 1 = Jaipur, day 2 = Delhi, ... day 36 = Ranchi, day 37 = Jaipur again
+          CITIES=(
+            "Jaipur" "Delhi" "Mumbai" "Bangalore" "Hyderabad" "Pune"
+            "Lucknow" "Chandigarh" "Indore" "Bhopal" "Nagpur" "Patna"
+            "Kochi" "Coimbatore" "Vadodara" "Surat" "Visakhapatnam"
+            "Thiruvananthapuram" "Mysuru" "Jodhpur" "Udaipur"
+            "Ajmer" "Kota" "Bikaner" "Sikar" "Alwar" "Bhilwara"
+            "Ujjain" "Raipur" "Dehradun" "Agra" "Varanasi"
+            "Jalandhar" "Ludhiana" "Gwalior" "Ranchi"
+          )
           
           # If manual city is specified, use that
           MANUAL_CITY="${{ github.event.inputs.city }}"
