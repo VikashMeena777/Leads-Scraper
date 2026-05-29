@@ -33,8 +33,8 @@
             "id": "c9f79867-acf8-46dd-a322-e80cd1a722d5",
             "name": "AI Message Generator",
             "position": [
-                4224,
-                960
+                4208,
+                1040
             ],
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.4,
@@ -53,8 +53,8 @@
             "id": "2037ac6a-501d-4563-af06-1f56fb440374",
             "name": "Build WhatsApp Link",
             "position": [
-                4432,
-                960
+                4416,
+                1040
             ],
             "type": "n8n-nodes-base.code",
             "typeVersion": 2
@@ -71,8 +71,8 @@
             "id": "0f12f7ec-8731-4df0-adf8-b17db9c435c7",
             "name": "Send to Telegram",
             "position": [
-                4640,
-                960
+                4624,
+                1040
             ],
             "type": "n8n-nodes-base.telegram",
             "typeVersion": 1.2,
@@ -258,8 +258,8 @@
             "id": "b5b86ff0-0a31-4df5-8459-303f82e97d6a",
             "name": "Mark as Contacted",
             "position": [
-                4848,
-                960
+                4832,
+                1040
             ],
             "type": "n8n-nodes-base.googleSheets",
             "typeVersion": 4.7,
@@ -274,7 +274,7 @@
             "parameters": {
                 "content": "# WhatsApp Lead Outreach",
                 "height": 448,
-                "width": 2144
+                "width": 2304
             },
             "id": "d5d80d12-4e81-4823-a4fd-748d60376567",
             "name": "Sticky Note",
@@ -296,10 +296,10 @@
                 },
                 "sheetName": {
                     "__rl": true,
-                    "value": "Daily Mix",
-                    "mode": "name",
+                    "value": 911402845,
+                    "mode": "list",
                     "cachedResultName": "Daily Mix",
-                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg/edit#gid=0"
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg/edit#gid=911402845"
                 },
                 "filtersUI": {
                     "values": [
@@ -367,7 +367,7 @@
             "typeVersion": 3,
             "position": [
                 4000,
-                912
+                928
             ],
             "id": "63c83fbf-2204-41da-9eff-55f53d99ce45",
             "name": "Loop Over Items"
@@ -377,12 +377,209 @@
             "type": "n8n-nodes-base.wait",
             "typeVersion": 1.1,
             "position": [
-                3808,
-                1008
+                3792,
+                1040
             ],
             "id": "f97f09aa-7328-43e5-ac52-61a5bbeab952",
             "name": "Wait",
             "webhookId": "8dbee137-3edf-45e3-9e23-2b8782c38672"
+        },
+        {
+            "parameters": {
+                "operation": "update",
+                "documentId": {
+                    "__rl": true,
+                    "cachedResultName": "Leads Gen",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg/edit?usp=drivesdk",
+                    "mode": "list",
+                    "value": "16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": 911402845,
+                    "mode": "list",
+                    "cachedResultName": "Daily Mix",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16kR7CqPjiapIKIOqRkLM-lITNJh0_rupaSeK2i5wCzg/edit#gid=911402845"
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "status": "contacted",
+                        "phone": "={{ $('Build WhatsApp Link').item.json.phone }}"
+                    },
+                    "matchingColumns": [
+                        "phone"
+                    ],
+                    "schema": [
+                        {
+                            "id": "business_name",
+                            "displayName": "business_name",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "category",
+                            "displayName": "category",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "city",
+                            "displayName": "city",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "phone",
+                            "displayName": "phone",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": false
+                        },
+                        {
+                            "id": "email",
+                            "displayName": "email",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "website",
+                            "displayName": "website",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "google_maps_url",
+                            "displayName": "google_maps_url",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "address",
+                            "displayName": "address",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "rating",
+                            "displayName": "rating",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "source",
+                            "displayName": "source",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "date_added",
+                            "displayName": "date_added",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "status",
+                            "displayName": "status",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "search_keyword",
+                            "displayName": "search_keyword",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "scraped_at",
+                            "displayName": "scraped_at",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        },
+                        {
+                            "id": "row_number",
+                            "displayName": "row_number",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": true
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "id": "1fb91aa9-5d03-4c64-9b83-1be60066751f",
+            "name": "Mark Daily Mix Done",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.7,
+            "position": [
+                5040,
+                1040
+            ],
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "1gz3DofInpV64qih",
+                    "name": "Google Sheets account"
+                }
+            }
         }
     ],
     "connections": {
@@ -434,7 +631,7 @@
             "main": [
                 [
                     {
-                        "node": "Wait",
+                        "node": "Mark Daily Mix Done",
                         "type": "main",
                         "index": 0
                     }
@@ -491,6 +688,17 @@
                 [
                     {
                         "node": "Loop Over Items",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Mark Daily Mix Done": {
+            "main": [
+                [
+                    {
+                        "node": "Wait",
                         "type": "main",
                         "index": 0
                     }
