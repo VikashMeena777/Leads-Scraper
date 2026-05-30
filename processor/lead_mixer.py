@@ -243,11 +243,11 @@ def write_to_tab(ws, tab_name, leads: list[dict], headers: list[str]):
     """
     write_headers = list(headers)
 
-    # Ensure master_row and row_number columns exist
-    if "master_row" not in write_headers:
-        write_headers.append("master_row")
-    if "row_number" not in write_headers:
-        write_headers.append("row_number")
+    # Ensure essential columns exist in headers
+    for col in ["master_row", "row_number", "email_sent_date", "follow_up_count",
+                 "last_follow_up_date", "gmail_account_index", "email_subject", "has_website"]:
+        if col not in write_headers:
+            write_headers.append(col)
 
     # ── Step 1: Read existing rows from the tab ──
     existing_leads = []
