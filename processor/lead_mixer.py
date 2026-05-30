@@ -229,17 +229,32 @@ def round_robin_mix(leads: list[dict], batch_size: int) -> list[dict]:
 
 
 def write_to_tab(ws, tab_name, leads: list[dict], headers: list[str]):
-    """Clear a tab and write the mixed batch."""
+    """Clear a tab and write the mixed batch.
+
+    IMPORTANT: row_number in output = sequential sheet position (2, 3, 4...)
+    so n8n can match by row_number to update the correct row.
+    The original master sheet row is stored as 'master_row'.
+    """
     write_headers = list(headers)
+
+    # Ensure master_row and row_number columns exist
+    if "master_row" not in write_headers:
+        write_headers.append("master_row")
     if "row_number" not in write_headers:
         write_headers.append("row_number")
 
     rows = []
-    for lead in leads:
+    for i, lead in enumerate(leads):
         row = []
         for h in write_headers:
-            val = lead.get(h, "")
-            row.append(val)
+            if h == "row_number":
+                # Sequential row number = actual sheet row (header is row 1)
+                row.append(str(i + 2))
+            elif h == "master_row":
+                # Original master sheet row number for back-tracking
+                row.append(lead.get("row_number", lead.get("master_row", "")))
+            else:
+                row.append(lead.get(h, ""))
         rows.append(row)
 
     ws.clear()
@@ -247,6 +262,7 @@ def write_to_tab(ws, tab_name, leads: list[dict], headers: list[str]):
     ws.update("A1", all_data)
 
     logger.info(f"  Written {len(rows)} leads to '{tab_name}' tab")
+    logger.info(f"  row_number range: 2 to {len(rows) + 1} (sequential, matches sheet rows)")
 
 
 def mark_as_queued(master_sheet, leads: list[dict], headers: list[str]):
@@ -378,6 +394,8 @@ def main():
         for lead in wa_mixed:
             clean = {k: v for k, v in lead.items() if not k.startswith("_")}
             clean["status"] = "New"
+            # Keep original row_number as-is; write_to_tab will
+            # store it as master_row and assign sequential row_number
             clean_wa.append(clean)
         write_to_tab(mix_ws, DAILY_MIX_TAB, clean_wa, headers)
 
