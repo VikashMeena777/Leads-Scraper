@@ -5,6 +5,7 @@ venv/
 
 # Credentials (stored in GitHub Secrets)
 config/credentials.json
+config/gmail_accounts.json
 
 # Output data (generated at runtime)
 output/*.csv

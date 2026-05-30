@@ -5,3 +5,5 @@ phonenumbers
 gspread
 google-auth
 python-dotenv
+beautifulsoup4
+lxml
