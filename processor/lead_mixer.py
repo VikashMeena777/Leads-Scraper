@@ -229,11 +229,17 @@ def round_robin_mix(leads: list[dict], batch_size: int) -> list[dict]:
 
 
 def write_to_tab(ws, tab_name, leads: list[dict], headers: list[str]):
-    """Clear a tab and write the mixed batch.
+    """APPEND new leads to tab, keeping existing unprocessed leads.
 
-    IMPORTANT: row_number in output = sequential sheet position (2, 3, 4...)
-    so n8n can match by row_number to update the correct row.
-    The original master sheet row is stored as 'master_row'.
+    - Reads existing rows from the tab
+    - Keeps rows where status is still 'New' (not yet processed by n8n)
+    - Removes rows already processed (emailed, contacted, replied, etc.)
+    - Deduplicates by email/phone so no lead appears twice
+    - Appends new leads after existing unprocessed ones
+    - Reassigns sequential row_numbers to match actual sheet positions
+
+    row_number = sequential sheet position (2, 3, 4...)
+    master_row = original master sheet row for back-tracking
     """
     write_headers = list(headers)
 
@@ -243,8 +249,57 @@ def write_to_tab(ws, tab_name, leads: list[dict], headers: list[str]):
     if "row_number" not in write_headers:
         write_headers.append("row_number")
 
+    # ── Step 1: Read existing rows from the tab ──
+    existing_leads = []
+    seen_keys = set()  # Track email+phone to prevent duplicates
+
+    try:
+        existing_data = ws.get_all_values()
+        if len(existing_data) >= 2:
+            existing_headers = existing_data[0]
+            for row in existing_data[1:]:
+                lead_dict = {}
+                for i, h in enumerate(existing_headers):
+                    lead_dict[h] = row[i] if i < len(row) else ""
+
+                # Only keep rows with status = "New" (unprocessed by n8n)
+                status = lead_dict.get("status", "").strip().lower()
+                if status not in ("new", ""):
+                    continue  # Skip processed leads (emailed, contacted, etc.)
+
+                # Build dedup key from email and phone
+                email = lead_dict.get("email", "").strip().lower()
+                phone = lead_dict.get("phone", "").strip()
+                dedup_key = f"{email}|{phone}"
+                if dedup_key in seen_keys:
+                    continue
+                seen_keys.add(dedup_key)
+
+                existing_leads.append(lead_dict)
+    except Exception as e:
+        logger.warning(f"  Could not read existing '{tab_name}' data: {e}")
+        logger.info(f"  Starting with empty tab")
+
+    logger.info(f"  Existing unprocessed leads in '{tab_name}': {len(existing_leads)}")
+
+    # ── Step 2: Filter new leads (skip duplicates) ──
+    new_leads_added = 0
+    for lead in leads:
+        email = lead.get("email", "").strip().lower()
+        phone = lead.get("phone", "").strip()
+        dedup_key = f"{email}|{phone}"
+
+        if dedup_key in seen_keys:
+            continue  # Already in the tab
+        seen_keys.add(dedup_key)
+
+        existing_leads.append(lead)
+        new_leads_added += 1
+
+    # ── Step 3: Build rows with sequential row_numbers ──
+    all_combined = existing_leads
     rows = []
-    for i, lead in enumerate(leads):
+    for i, lead in enumerate(all_combined):
         row = []
         for h in write_headers:
             if h == "row_number":
@@ -257,12 +312,14 @@ def write_to_tab(ws, tab_name, leads: list[dict], headers: list[str]):
                 row.append(lead.get(h, ""))
         rows.append(row)
 
+    # ── Step 4: Clear and rewrite (with existing + new combined) ──
     ws.clear()
     all_data = [write_headers] + rows
     ws.update("A1", all_data)
 
-    logger.info(f"  Written {len(rows)} leads to '{tab_name}' tab")
-    logger.info(f"  row_number range: 2 to {len(rows) + 1} (sequential, matches sheet rows)")
+    logger.info(f"  Kept {len(existing_leads) - new_leads_added} existing unprocessed leads")
+    logger.info(f"  Added {new_leads_added} new leads")
+    logger.info(f"  Total in '{tab_name}': {len(rows)} leads (rows 2-{len(rows) + 1})")
 
 
 def mark_as_queued(master_sheet, leads: list[dict], headers: list[str]):
