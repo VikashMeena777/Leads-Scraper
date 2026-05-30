@@ -262,10 +262,9 @@ def write_to_tab(ws, tab_name, leads: list[dict], headers: list[str]):
                 for i, h in enumerate(existing_headers):
                     lead_dict[h] = row[i] if i < len(row) else ""
 
-                # Only keep rows with status = "New" (unprocessed by n8n)
-                status = lead_dict.get("status", "").strip().lower()
-                if status not in ("new", ""):
-                    continue  # Skip processed leads (emailed, contacted, etc.)
+                # Keep ALL leads regardless of status
+                # n8n tracks emailed/replied/bounced leads in this tab
+                # We only deduplicate, never drop by status
 
                 # Build dedup key from email and phone
                 email = lead_dict.get("email", "").strip().lower()
