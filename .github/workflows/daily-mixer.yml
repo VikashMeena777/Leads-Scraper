@@ -1,8 +1,10 @@
 # ──────────────────────────────────────────────────────────────────
-#  Daily Lead Mixer — GitHub Actions
+#  Daily Lead Mixer + Email Extractor — GitHub Actions
 #  Runs every day at 5:30 AM IST (00:00 UTC) — BEFORE the n8n
-#  outreach workflow fires. Fills the "Daily Mix" tab with 50
-#  round-robin mixed leads from the master sheet.
+#  outreach workflows fire.
+#
+#  1. Extracts emails from business websites (Playwright)
+#  2. Fills "Daily Mix" tab (WhatsApp) + "Email Queue" tab (Email)
 # ──────────────────────────────────────────────────────────────────
 name: "🔄 Daily Lead Mixer"
 
@@ -27,7 +29,7 @@ jobs:
   mix:
     name: "🔄 Mix Daily Leads"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
 
     steps:
       - name: 📥 Checkout code
@@ -44,6 +46,11 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: 🌐 Install Playwright browsers
+        run: |
+          python -m playwright install chromium
+          python -m playwright install-deps chromium
+
       - name: 🔐 Setup Google credentials
         run: |
           mkdir -p config
@@ -56,7 +63,6 @@ jobs:
         run: |
           echo "📧 Extracting emails from business websites..."
           python processor/email_extractor.py --limit 200
-        continue-on-error: true
 
       - name: "🔄 Run Lead Mixer"
         env:
@@ -86,7 +92,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
-              \"text\": \"🔄 <b>Daily Mix Ready</b>\n\n📊 ${BATCH_SIZE} mixed leads loaded\n📋 Check 'Daily Mix' tab in Google Sheet\n🤖 n8n will pick up leads automatically\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"text\": \"🔄 <b>Daily Mix + Email Queue Ready</b>\n\n📧 Emails extracted from websites\n📊 WhatsApp: ${BATCH_SIZE} leads in Daily Mix\n📬 Email: 200 leads in Email Queue\n🤖 n8n will process both automatically\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
               \"parse_mode\": \"HTML\"
             }" || true
 
