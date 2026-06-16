@@ -1,0 +1,91 @@
+# ──────────────────────────────────────────────────────────────────
+#  Email Extractor — GitHub Actions (Runs 4x/day)
+#  Extracts emails from business websites that have no email yet.
+#  Runs independently from the Lead Mixer for higher throughput.
+#
+#  Schedule: Every 6 hours = 4 runs/day = ~800 websites checked/day
+# ──────────────────────────────────────────────────────────────────
+name: "📧 Email Extractor"
+
+on:
+  schedule:
+    # Every 6 hours: 12:00 AM, 6:00 AM, 12:00 PM, 6:00 PM UTC
+    # = 5:30 AM, 11:30 AM, 5:30 PM, 11:30 PM IST
+    - cron: "0 0,6,12,18 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max websites to check (default: 200)"
+        required: false
+        default: "200"
+        type: string
+
+jobs:
+  extract:
+    name: "📧 Extract Emails"
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🌐 Install Playwright browsers
+        run: |
+          python -m playwright install chromium
+          python -m playwright install-deps chromium
+
+      - name: 🔐 Setup Google credentials
+        run: |
+          mkdir -p config
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > config/credentials.json
+
+      - name: "📧 Extract Emails from Websites"
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_PATH: config/credentials.json
+        run: |
+          LIMIT="${{ github.event.inputs.limit || '200' }}"
+          echo "📧 Extracting emails (limit: $LIMIT)..."
+          python processor/email_extractor.py --limit "$LIMIT"
+
+      # ── Telegram Notification ──────────────────────
+      - name: "✅ Notify Success"
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          LIMIT="${{ github.event.inputs.limit || '200' }}"
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+              \"text\": \"📧 <b>Email Extractor Complete</b>\n\n🔍 Checked up to ${LIMIT} websites\n⏰ Next run in 6 hours\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"parse_mode\": \"HTML\"
+            }" || true
+
+      - name: "❌ Notify Failure"
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+              \"text\": \"❌ <b>Email Extractor Failed</b>\n\n🕐 Run: #${{ github.run_number }}\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"parse_mode\": \"HTML\"
+            }" || true
