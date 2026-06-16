@@ -1,10 +1,12 @@
 # ──────────────────────────────────────────────────────────────────
-#  Daily Lead Mixer + Email Extractor — GitHub Actions
+#  Daily Lead Mixer — GitHub Actions
 #  Runs every day at 5:30 AM IST (00:00 UTC) — BEFORE the n8n
 #  outreach workflows fire.
 #
-#  1. Extracts emails from business websites (Playwright)
-#  2. Fills "Daily Mix" tab (WhatsApp) + "Email Queue" tab (Email)
+#  Fills "Daily Mix" tab (WhatsApp/SMS) + "Email Queue" tab (Email)
+#  + "Call Queue" tab (Cold Calling)
+#
+#  Email extraction runs separately in daily-email-extractor.yml
 # ──────────────────────────────────────────────────────────────────
 name: "🔄 Daily Lead Mixer"
 
@@ -46,23 +48,10 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 🌐 Install Playwright browsers
-        run: |
-          python -m playwright install chromium
-          python -m playwright install-deps chromium
-
       - name: 🔐 Setup Google credentials
         run: |
           mkdir -p config
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > config/credentials.json
-
-      - name: "📧 Extract Emails from Websites"
-        env:
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_CREDENTIALS_PATH: config/credentials.json
-        run: |
-          echo "📧 Extracting emails from business websites..."
-          python processor/email_extractor.py --limit 200
 
       - name: "🔄 Run Lead Mixer"
         env:
@@ -72,7 +61,7 @@ jobs:
           BATCH_SIZE="${{ github.event.inputs.batch_size || '50' }}"
           DRY_RUN="${{ github.event.inputs.dry_run }}"
 
-          CMD="python processor/lead_mixer.py --batch-size $BATCH_SIZE --email-batch 200"
+          CMD="python processor/lead_mixer.py --batch-size $BATCH_SIZE --email-batch 200 --call-batch 10"
           if [ "$DRY_RUN" = "true" ]; then
             CMD="$CMD --dry-run"
           fi
@@ -92,7 +81,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
-              \"text\": \"🔄 <b>Daily Mix + Email Queue Ready</b>\n\n📧 Emails extracted from websites\n📊 WhatsApp: ${BATCH_SIZE} leads in Daily Mix\n📬 Email: 200 leads in Email Queue\n🤖 n8n will process both automatically\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"text\": \"🔄 <b>Daily Mix Ready</b>\n\n📊 WhatsApp/SMS: ${BATCH_SIZE} leads in Daily Mix\n📬 Email: 200 leads in Email Queue\n📞 Call: 10 leads in Call Queue\n🤖 n8n will process all automatically\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
               \"parse_mode\": \"HTML\"
             }" || true
 

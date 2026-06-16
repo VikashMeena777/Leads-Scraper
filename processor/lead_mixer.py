@@ -3,20 +3,24 @@ Lead Mixer — Round-Robin Daily Batch Generator
 ================================================
 Reads all "New" leads from master Google Sheet, mixes them by
 category + city using round-robin rotation, and writes daily
-batches to TWO tabs:
+batches to THREE tabs:
 
-  - "Daily Mix" tab   → leads with phone (for WhatsApp outreach via n8n)
+  - "Daily Mix" tab   → leads with phone (for WhatsApp/SMS outreach via n8n)
   - "Email Queue" tab  → leads with email (for automated email outreach via n8n)
+  - "Call Queue" tab   → leads for cold calling (EXCLUSIVE — no WhatsApp)
 
+Call Queue leads are EXCLUDED from Daily Mix to prevent double-outreach.
 The n8n WhatsApp workflow reads from "Daily Mix" tab.
 The n8n Email workflow reads from "Email Queue" tab.
+The n8n Cold Call workflow reads from "Call Queue" tab.
 
 Usage:
-    python processor/lead_mixer.py                    # Default: 50 WA + 200 email
+    python processor/lead_mixer.py                    # Default: 50 WA + 200 email + 10 call
     python processor/lead_mixer.py --batch-size 30    # Custom WA batch size
     python processor/lead_mixer.py --email-batch 150  # Custom email batch size
+    python processor/lead_mixer.py --call-batch 15    # Custom call batch size
     python processor/lead_mixer.py --dry-run           # Preview without writing
-    python processor/lead_mixer.py --reset             # Clear both tabs
+    python processor/lead_mixer.py --reset             # Clear all tabs
 """
 
 import os
@@ -53,8 +57,10 @@ SCOPES = [
 
 DAILY_MIX_TAB = "Daily Mix"
 EMAIL_QUEUE_TAB = "Email Queue"
+CALL_QUEUE_TAB = "Call Queue"
 DEFAULT_BATCH_SIZE = 50
 DEFAULT_EMAIL_BATCH = 200
+DEFAULT_CALL_BATCH = 10
 
 
 def normalize_phone_for_sort(phone_str) -> str:
@@ -358,16 +364,19 @@ def main():
                         help=f"WhatsApp batch size (default: {DEFAULT_BATCH_SIZE})")
     parser.add_argument("--email-batch", type=int, default=DEFAULT_EMAIL_BATCH,
                         help=f"Email batch size (default: {DEFAULT_EMAIL_BATCH})")
+    parser.add_argument("--call-batch", type=int, default=DEFAULT_CALL_BATCH,
+                        help=f"Cold call batch size (default: {DEFAULT_CALL_BATCH})")
     parser.add_argument("--dry-run", action="store_true",
                         help="Preview the batch without writing to sheet")
     parser.add_argument("--reset", action="store_true",
-                        help="Clear Daily Mix and Email Queue tabs and exit")
+                        help="Clear Daily Mix, Email Queue, and Call Queue tabs and exit")
     args = parser.parse_args()
 
     logger.info("===========================================")
-    logger.info("  LEAD MIXER — Dual-Queue Daily Batch")
+    logger.info("  LEAD MIXER — Triple-Queue Daily Batch")
     logger.info(f"  WhatsApp batch:  {args.batch_size}")
     logger.info(f"  Email batch:     {args.email_batch}")
+    logger.info(f"  Call batch:      {args.call_batch}")
     logger.info(f"  Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     logger.info("===========================================")
 
@@ -376,11 +385,13 @@ def main():
     master_sheet = spreadsheet.sheet1
     mix_ws = ensure_tab(spreadsheet, DAILY_MIX_TAB)
     email_ws = ensure_tab(spreadsheet, EMAIL_QUEUE_TAB)
+    call_ws = ensure_tab(spreadsheet, CALL_QUEUE_TAB)
 
     if args.reset:
         mix_ws.clear()
         email_ws.clear()
-        logger.info("Daily Mix and Email Queue tabs cleared.")
+        call_ws.clear()
+        logger.info("Daily Mix, Email Queue, and Call Queue tabs cleared.")
         return
 
     # Step 1: Read all "New" leads
@@ -393,7 +404,7 @@ def main():
         return
 
     # Separate leads by channel
-    phone_only_leads = []  # Has phone but no email → WhatsApp
+    phone_only_leads = []  # Has phone but no email → WhatsApp/SMS + Call
     email_leads = []       # Has email → Email outreach
     both_leads = []        # Has both → Email (email first strategy)
 
@@ -408,22 +419,45 @@ def main():
             phone_only_leads.append(lead)
         # Skip leads with neither phone nor email
 
-    logger.info(f"   Phone only (WhatsApp):  {len(phone_only_leads)}")
-    logger.info(f"   Has email (Email):      {len(email_leads)}")
-    logger.info(f"   No phone or email:      {len(leads) - len(phone_only_leads) - len(email_leads)}")
+    logger.info(f"   Phone only (WA/SMS + Call): {len(phone_only_leads)}")
+    logger.info(f"   Has email (Email):          {len(email_leads)}")
+    logger.info(f"   No phone or email:          {len(leads) - len(phone_only_leads) - len(email_leads)}")
 
-    # Step 2: Round-robin mix for WhatsApp queue
-    logger.info(f"\n2. Mixing WhatsApp leads (batch={args.batch_size})...")
-    wa_mixed = round_robin_mix(phone_only_leads, args.batch_size)
-    logger.info(f"   WhatsApp batch: {len(wa_mixed)} leads")
+    # ── Step 2: Round-robin mix for CALL QUEUE (exclusive, picked first) ──
+    logger.info(f"\n2. Mixing Call leads (batch={args.call_batch})...")
+    call_mixed = round_robin_mix(phone_only_leads, args.call_batch)
+    logger.info(f"   Call batch: {len(call_mixed)} leads")
 
-    # Step 3: Round-robin mix for Email queue
-    logger.info(f"\n3. Mixing Email leads (batch={args.email_batch})...")
+    # Remove call leads from phone pool so they don't also get WhatsApp
+    call_lead_ids = set()
+    for lead in call_mixed:
+        # Use phone + business_name as unique key
+        phone = lead.get("phone", "").strip()
+        name = lead.get("business_name", "").strip()
+        call_lead_ids.add(f"{phone}|{name}")
+
+    wa_eligible_leads = []
+    for lead in phone_only_leads:
+        phone = lead.get("phone", "").strip()
+        name = lead.get("business_name", "").strip()
+        key = f"{phone}|{name}"
+        if key not in call_lead_ids:
+            wa_eligible_leads.append(lead)
+
+    logger.info(f"   After excluding call leads: {len(wa_eligible_leads)} phone leads for WhatsApp/SMS")
+
+    # ── Step 3: Round-robin mix for WhatsApp queue (from remaining phone leads) ──
+    logger.info(f"\n3. Mixing WhatsApp/SMS leads (batch={args.batch_size})...")
+    wa_mixed = round_robin_mix(wa_eligible_leads, args.batch_size)
+    logger.info(f"   WhatsApp/SMS batch: {len(wa_mixed)} leads")
+
+    # ── Step 4: Round-robin mix for Email queue ──
+    logger.info(f"\n4. Mixing Email leads (batch={args.email_batch})...")
     email_mixed = round_robin_mix(email_leads, args.email_batch)
     logger.info(f"   Email batch: {len(email_mixed)} leads")
 
     # Print distribution
-    for label, mixed in [("WhatsApp", wa_mixed), ("Email", email_mixed)]:
+    for label, mixed in [("Call", call_mixed), ("WhatsApp/SMS", wa_mixed), ("Email", email_mixed)]:
         if mixed:
             cat_counts = defaultdict(int)
             city_counts = defaultdict(int)
@@ -441,22 +475,29 @@ def main():
         logger.info("\n   DRY RUN — no changes written to sheet.")
         return
 
-    # Step 4: Write to tabs
-    all_mixed = wa_mixed + email_mixed
+    # ── Step 5: Write to tabs ──
+    all_mixed = call_mixed + wa_mixed + email_mixed
+
+    if call_mixed:
+        logger.info(f"\n5a. Writing to '{CALL_QUEUE_TAB}' tab...")
+        clean_call = []
+        for lead in call_mixed:
+            clean = {k: v for k, v in lead.items() if not k.startswith("_")}
+            clean["status"] = "New"
+            clean_call.append(clean)
+        write_to_tab(call_ws, CALL_QUEUE_TAB, clean_call, headers)
 
     if wa_mixed:
-        logger.info(f"\n4. Writing to '{DAILY_MIX_TAB}' tab...")
+        logger.info(f"\n5b. Writing to '{DAILY_MIX_TAB}' tab...")
         clean_wa = []
         for lead in wa_mixed:
             clean = {k: v for k, v in lead.items() if not k.startswith("_")}
             clean["status"] = "New"
-            # Keep original row_number as-is; write_to_tab will
-            # store it as master_row and assign sequential row_number
             clean_wa.append(clean)
         write_to_tab(mix_ws, DAILY_MIX_TAB, clean_wa, headers)
 
     if email_mixed:
-        logger.info(f"\n5. Writing to '{EMAIL_QUEUE_TAB}' tab...")
+        logger.info(f"\n5c. Writing to '{EMAIL_QUEUE_TAB}' tab...")
         clean_email = []
         for lead in email_mixed:
             clean = {k: v for k, v in lead.items() if not k.startswith("_")}
@@ -464,7 +505,7 @@ def main():
             clean_email.append(clean)
         write_to_tab(email_ws, EMAIL_QUEUE_TAB, clean_email, headers)
 
-    # Step 5: Mark as Queued in master sheet
+    # Step 6: Mark as Queued in master sheet
     logger.info("\n6. Marking leads as 'Queued' in master sheet...")
     mark_as_queued(master_sheet, all_mixed, headers)
 
@@ -472,6 +513,7 @@ def main():
     logger.info("")
     logger.info("===========================================")
     logger.info("  MIXER COMPLETE")
+    logger.info(f"  Call queue:       {len(call_mixed)} leads -> '{CALL_QUEUE_TAB}'")
     logger.info(f"  WhatsApp queue:   {len(wa_mixed)} leads -> '{DAILY_MIX_TAB}'")
     logger.info(f"  Email queue:      {len(email_mixed)} leads -> '{EMAIL_QUEUE_TAB}'")
     logger.info(f"  Total queued:     {len(all_mixed)} leads")
