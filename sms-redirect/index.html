@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Send SMS</title>
+  <style>
+    body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #eee; }
+    .card { text-align: center; padding: 2rem; background: #16213e; border-radius: 16px; max-width: 400px; width: 90%; }
+    h2 { margin: 0 0 1rem; }
+    .phone { font-size: 1.5rem; color: #4ade80; margin: 1rem 0; }
+    .msg { background: #0f3460; padding: 1rem; border-radius: 8px; text-align: left; margin: 1rem 0; font-size: 0.95rem; line-height: 1.5; word-wrap: break-word; }
+    .btn { display: inline-block; padding: 14px 32px; background: #4ade80; color: #1a1a2e; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 1.1rem; margin-top: 1rem; }
+    .btn:active { background: #22c55e; }
+    .copy-btn { display: inline-block; padding: 10px 20px; background: #334155; color: #eee; border: none; border-radius: 8px; font-size: 0.9rem; margin-top: 0.5rem; cursor: pointer; }
+    .copied { background: #4ade80; color: #1a1a2e; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>📱 Send SMS</h2>
+    <div class="phone" id="phone"></div>
+    <div class="msg" id="msg"></div>
+    <button class="copy-btn" id="copyBtn" onclick="copyMsg()">📋 Copy Message</button>
+    <br>
+    <a class="btn" id="smsLink" href="#">💬 Open Messages App</a>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const to = params.get('to') || '';
+    const msg = decodeURIComponent(params.get('msg') || '');
+    
+    document.getElementById('phone').textContent = '+' + to;
+    document.getElementById('msg').textContent = msg;
+    
+    const smsUri = 'sms:+' + to + '?body=' + encodeURIComponent(msg);
+    document.getElementById('smsLink').href = smsUri;
+    
+    // Auto-redirect on mobile
+    if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      setTimeout(function() { window.location.href = smsUri; }, 500);
+    }
+    
+    function copyMsg() {
+      navigator.clipboard.writeText(msg).then(function() {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '✅ Copied!';
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = '📋 Copy Message'; btn.classList.remove('copied'); }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>
