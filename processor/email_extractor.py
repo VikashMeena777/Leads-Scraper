@@ -234,6 +234,112 @@ def scrape_website_emails(page, base_url: str) -> list[str]:
     return list(all_emails)
 
 
+def append_to_email_queue(spreadsheet, updates, leads_by_row, headers):
+    """Directly append leads with found emails to Email Queue tab.
+
+    This ensures emails discovered by the extractor immediately become
+    available for the n8n email outreach workflow, without waiting for
+    the daily mixer (which may have already marked them as 'Queued').
+
+    Returns:
+        int: Number of new leads added to Email Queue
+    """
+    EMAIL_QUEUE_TAB = "Email Queue"
+
+    # Ensure tab exists
+    try:
+        eq_ws = spreadsheet.worksheet(EMAIL_QUEUE_TAB)
+    except gspread.exceptions.WorksheetNotFound:
+        logger.info(f"  Creating '{EMAIL_QUEUE_TAB}' tab...")
+        eq_ws = spreadsheet.add_worksheet(title=EMAIL_QUEUE_TAB, rows=500, cols=25)
+
+    # Build Email Queue headers (master headers + extra tracking columns)
+    eq_headers = list(headers)
+    extra_cols = [
+        "master_row", "row_number", "email_sent_date", "follow_up_count",
+        "last_follow_up_date", "gmail_account_index", "email_subject", "has_website",
+    ]
+    for col in extra_cols:
+        if col not in eq_headers:
+            eq_headers.append(col)
+
+    # Read existing Email Queue for dedup
+    existing_keys = set()
+    existing_rows = []
+    try:
+        eq_data = eq_ws.get_all_values()
+        if len(eq_data) >= 2:
+            existing_eq_headers = eq_data[0]
+            for row in eq_data[1:]:
+                row_dict = {}
+                for i, h in enumerate(existing_eq_headers):
+                    row_dict[h] = row[i] if i < len(row) else ""
+
+                email_val = row_dict.get("email", "").strip().lower()
+                phone_val = row_dict.get("phone", "").strip()
+                dedup_key = f"{email_val}|{phone_val}"
+
+                if dedup_key not in existing_keys:
+                    existing_keys.add(dedup_key)
+                    existing_rows.append(row_dict)
+    except Exception as e:
+        logger.warning(f"  Could not read Email Queue: {e}")
+
+    logger.info(f"  Existing Email Queue leads: {len(existing_rows)}")
+
+    # Add new leads with found emails
+    new_count = 0
+    for row_num, found_email in updates:
+        lead_data = leads_by_row.get(row_num)
+        if not lead_data:
+            continue
+
+        all_data = lead_data.get("all_data", {})
+        phone = all_data.get("phone", "").strip()
+        dedup_key = f"{found_email.lower()}|{phone}"
+
+        if dedup_key in existing_keys:
+            continue  # Already in Email Queue
+
+        existing_keys.add(dedup_key)
+
+        # Build the Email Queue entry with all master sheet columns
+        new_lead = dict(all_data)
+        new_lead["email"] = found_email
+        new_lead["status"] = "New"
+        new_lead["master_row"] = str(row_num)
+        new_lead["has_website"] = "YES" if is_real_website(all_data.get("website", "")) else "NO"
+        new_lead.setdefault("email_sent_date", "")
+        new_lead.setdefault("follow_up_count", "")
+        new_lead.setdefault("last_follow_up_date", "")
+        new_lead.setdefault("gmail_account_index", "")
+        new_lead.setdefault("email_subject", "")
+
+        existing_rows.append(new_lead)
+        new_count += 1
+
+    if new_count == 0:
+        logger.info("  No new leads to add to Email Queue (all already present)")
+        return 0
+
+    # Rebuild and write all rows with sequential row_numbers
+    all_sheet_rows = [eq_headers]
+    for i, lead in enumerate(existing_rows):
+        row = []
+        for h in eq_headers:
+            if h == "row_number":
+                row.append(str(i + 2))  # Sequential: row 2, 3, 4...
+            else:
+                row.append(lead.get(h, ""))
+        all_sheet_rows.append(row)
+
+    eq_ws.clear()
+    eq_ws.update("A1", all_sheet_rows)
+    logger.info(f"  Added {new_count} new leads to Email Queue (total: {len(existing_rows)})")
+
+    return new_count
+
+
 def get_sheet_client():
     """Authenticate and return gspread spreadsheet."""
     sheet_id = os.getenv("GOOGLE_SHEET_ID")
@@ -313,11 +419,17 @@ def get_leads_needing_email(master_sheet, city_filter=None, limit=None) -> tuple
             if city_filter.lower() not in city:
                 continue
 
+        # Store all column data for Email Queue population
+        all_cols = {}
+        for j in range(len(headers)):
+            all_cols[headers[j]] = cell(j)
+
         leads.append({
             "row_num": row_num,
             "business_name": cell(name_idx),
             "website": website,
             "city": cell(city_idx) if city_idx >= 0 else "",
+            "all_data": all_cols,
         })
 
     # Apply limit
@@ -496,13 +608,21 @@ def main():
 
             time.sleep(1)  # Rate limit
 
+    # 5. Add found emails to Email Queue directly
+    eq_added = 0
+    if updates:
+        logger.info(f"\n5. Adding {len(updates)} leads to Email Queue...")
+        leads_by_row = {lead["row_num"]: lead for lead in leads}
+        eq_added = append_to_email_queue(spreadsheet, updates, leads_by_row, headers)
+
     logger.info("")
     logger.info("═══════════════════════════════════════════")
     logger.info("  EMAIL EXTRACTOR COMPLETE")
     logger.info(f"  Websites checked:  {len(leads)}")
     logger.info(f"  Emails found:      {found_count}")
     logger.info(f"  Hit rate:          {found_count / len(leads) * 100:.1f}%")
-    logger.info(f"  Sheet updated:     {len(updates)} rows")
+    logger.info(f"  Sheet1 updated:    {len(updates)} rows")
+    logger.info(f"  Email Queue added: {eq_added} leads")
     logger.info("═══════════════════════════════════════════")
 
 
