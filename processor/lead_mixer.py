@@ -403,29 +403,34 @@ def main():
         logger.warning("No new leads available. Scrape more or check master sheet statuses.")
         return
 
-    # Separate leads by channel
-    phone_only_leads = []  # Has phone but no email → WhatsApp/SMS + Call
-    email_leads = []       # Has email → Email outreach
-    both_leads = []        # Has both → Email (email first strategy)
+    # Separate leads by channel — WhatsApp FIRST strategy
+    # Leads with phone (even if they also have email) → WhatsApp first
+    # Leads with email only (no phone) → Email directly
+    # Escalation script handles WhatsApp → Email after 24h
+    phone_leads = []       # Has phone (with or without email) → WhatsApp/Call first
+    email_only_leads = []  # Has email but NO phone → Email directly
 
     for lead in leads:
         has_phone = lead["_has_phone"]
         has_email = lead["_has_email"]
 
-        if has_email:
-            # If has email, prioritize email channel (even if has phone)
-            email_leads.append(lead)
-        elif has_phone:
-            phone_only_leads.append(lead)
+        if has_phone:
+            # WhatsApp first — even if they also have email
+            # Escalation script will add to Email Queue after WhatsApp is sent
+            phone_leads.append(lead)
+        elif has_email:
+            # No phone, only email — go directly to Email Queue
+            email_only_leads.append(lead)
         # Skip leads with neither phone nor email
 
-    logger.info(f"   Phone only (WA/SMS + Call): {len(phone_only_leads)}")
-    logger.info(f"   Has email (Email):          {len(email_leads)}")
-    logger.info(f"   No phone or email:          {len(leads) - len(phone_only_leads) - len(email_leads)}")
+    phone_with_email = sum(1 for l in phone_leads if l["_has_email"])
+    logger.info(f"   Phone leads (WhatsApp first): {len(phone_leads)} ({phone_with_email} also have email)")
+    logger.info(f"   Email only (direct):          {len(email_only_leads)}")
+    logger.info(f"   No phone or email:            {len(leads) - len(phone_leads) - len(email_only_leads)}")
 
     # ── Step 2: Round-robin mix for CALL QUEUE (exclusive, picked first) ──
     logger.info(f"\n2. Mixing Call leads (batch={args.call_batch})...")
-    call_mixed = round_robin_mix(phone_only_leads, args.call_batch)
+    call_mixed = round_robin_mix(phone_leads, args.call_batch)
     logger.info(f"   Call batch: {len(call_mixed)} leads")
 
     # Remove call leads from phone pool so they don't also get WhatsApp
@@ -437,23 +442,23 @@ def main():
         call_lead_ids.add(f"{phone}|{name}")
 
     wa_eligible_leads = []
-    for lead in phone_only_leads:
+    for lead in phone_leads:
         phone = lead.get("phone", "").strip()
         name = lead.get("business_name", "").strip()
         key = f"{phone}|{name}"
         if key not in call_lead_ids:
             wa_eligible_leads.append(lead)
 
-    logger.info(f"   After excluding call leads: {len(wa_eligible_leads)} phone leads for WhatsApp/SMS")
+    logger.info(f"   After excluding call leads: {len(wa_eligible_leads)} phone leads for WhatsApp")
 
     # ── Step 3: Round-robin mix for WhatsApp queue (from remaining phone leads) ──
-    logger.info(f"\n3. Mixing WhatsApp/SMS leads (batch={args.batch_size})...")
+    logger.info(f"\n3. Mixing WhatsApp leads (batch={args.batch_size})...")
     wa_mixed = round_robin_mix(wa_eligible_leads, args.batch_size)
-    logger.info(f"   WhatsApp/SMS batch: {len(wa_mixed)} leads")
+    logger.info(f"   WhatsApp batch: {len(wa_mixed)} leads")
 
-    # ── Step 4: Round-robin mix for Email queue ──
-    logger.info(f"\n4. Mixing Email leads (batch={args.email_batch})...")
-    email_mixed = round_robin_mix(email_leads, args.email_batch)
+    # ── Step 4: Round-robin mix for Email queue (email-only leads, no phone) ──
+    logger.info(f"\n4. Mixing Email-only leads (batch={args.email_batch})...")
+    email_mixed = round_robin_mix(email_only_leads, args.email_batch)
     logger.info(f"   Email batch: {len(email_mixed)} leads")
 
     # Print distribution

@@ -1,0 +1,85 @@
+# ──────────────────────────────────────────────────────────────────
+#  Email Escalation — GitHub Actions
+#  Runs daily at 12:00 PM IST (6:30 AM UTC)
+#
+#  Moves WhatsApp-contacted leads (that also have email) from
+#  Daily Mix → Email Queue for staggered multi-channel outreach.
+#
+#  Timeline:
+#    5:30 AM IST  → Mixer fills Daily Mix
+#    ~6:00 AM IST → n8n WhatsApp workflow sends Telegram cards
+#    12:00 PM IST → THIS script escalates contacted leads to Email Queue
+#    ~1:00 PM IST → n8n Email workflow sends emails
+#
+#  Result: WhatsApp Day 1 → Email Day 1-2 (natural stagger)
+# ──────────────────────────────────────────────────────────────────
+name: "📬 Email Escalation"
+
+on:
+  schedule:
+    # 12:00 PM IST = 6:30 AM UTC — runs after WhatsApp outreach is done
+    - cron: "30 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  escalate:
+    name: "📬 Escalate to Email"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install gspread google-auth python-dotenv
+
+      - name: 🔐 Setup Google credentials
+        run: |
+          mkdir -p config
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > config/credentials.json
+
+      - name: "📬 Escalate WhatsApp → Email"
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_PATH: config/credentials.json
+        run: |
+          echo "📬 Escalating contacted WhatsApp leads to Email Queue..."
+          python processor/escalate_to_email.py
+
+      # ── Telegram Notification ──────────────────────
+      - name: "✅ Notify Success"
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+              \"text\": \"📬 <b>Email Escalation Complete</b>\n\n🔄 WhatsApp leads with email → Email Queue\n📧 n8n will send emails automatically\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"parse_mode\": \"HTML\"
+            }" || true
+
+      - name: "❌ Notify Failure"
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+              \"text\": \"❌ <b>Email Escalation Failed</b>\n\n🕐 Run: #${{ github.run_number }}\n\n<a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Logs</a>\",
+              \"parse_mode\": \"HTML\"
+            }" || true
